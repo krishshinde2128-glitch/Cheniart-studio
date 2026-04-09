@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap');
+
+:root {
+  --bg-color: #7A9078;     /* Deep Sage */
+  --surface-color: #FBF8F2;  /* Cream */
+  --border-color: #e5e5e0;
+  --text-primary: #1A201A;
+  --text-secondary: #5c6b5a;
+  --primary-color: #7A9078;
+  --primary-hover: #637761;
+  
+  --success-bg: #7A9078;
+  --success-text: #ffffff;
+  --success-border: #7A9078;
+  
+  --muted-bg: #f2efe9;
+  
+  /* Soft SaaS gradients and shadows */
+  --bg-gradient: linear-gradient(135deg, #7A9078 0%, #637761 100%);
+  --surface-gradient: linear-gradient(180deg, #FBF8F2 0%, #f6f1e8 100%);
+  --shadow-glow: 0 4px 20px rgba(122, 144, 120, 0.4);
+  
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.06);
+  --shadow-float: 0 32px 64px rgba(0, 0, 0, 0.08);
+  
+  --surface-glass: rgba(251, 248, 242, 0.65);
+  --surface-glass-border: rgba(122, 144, 120, 0.15);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+  --glass-inset: inset 0 2px 4px rgba(255, 255, 255, 0.4);
+  
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Abstract Organic Background Shapes */
+body::before, body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(100px);
+  z-index: -1;
+  animation: float 25s infinite ease-in-out alternate;
+}
+
+body::before {
+  width: 800px;
+  height: 800px;
+  background: rgba(251, 248, 242, 0.25); /* Soft Cream Glow */
+  top: -15%;
+  left: -15%;
+}
+
+body::after {
+  width: 700px;
+  height: 700px;
+  background: rgba(122, 144, 120, 0.1); /* Subtle Sage Depth */
+  bottom: -20%;
+  right: -10%;
+  animation-delay: -5s;
+}
+
+@keyframes float {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  100% { transform: translate(40px, -60px) scale(1.15) rotate(10deg); }
+}
+
+/* Tooltip Utilities */
+.tooltip-container:hover .hover-tooltip {
+  opacity: 1 !important;
+  visibility: visible !important;
+}

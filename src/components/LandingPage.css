@@ -1,0 +1,309 @@
+.landing-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 2rem 4rem 2rem;
+  overflow-x: hidden;
+}
+
+/* Glassmorphic Navbar */
+.glass-navbar {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  margin-top: 2rem;
+  background: rgba(251, 248, 242, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 99px; /* Pill shaped navbar */
+  box-shadow: var(--shadow-sm);
+  z-index: 100;
+  animation: slideDownNav 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--surface-color);
+  text-decoration: none;
+}
+
+.nav-title {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav-link {
+  color: rgba(251, 248, 242, 0.85); /* Slightly muted cream */
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.2s;
+  cursor: pointer;
+}
+
+.nav-link:hover {
+  color: #ffffff;
+}
+
+/* Hero Section */
+.hero-section {
+  text-align: center;
+  margin-top: 6rem;
+  margin-bottom: 5rem;
+  animation: fadeUpHero 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.hero-graphic {
+  color: var(--surface-color);
+  margin-bottom: 1.5rem;
+  opacity: 0.9;
+  display: flex;
+  justify-content: center;
+}
+
+.hero-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 4rem;
+  font-weight: 400;
+  color: var(--surface-color);
+  margin: 0 0 1rem 0;
+  letter-spacing: -0.02em;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Soft lifted look */
+}
+
+.hero-subtitle {
+  font-size: 1.125rem;
+  color: rgba(251, 248, 242, 0.9); /* Lighter shade of off-white */
+  font-weight: 400;
+  max-width: 500px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* 2-Column Grid Layout */
+.saas-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+  width: 100%;
+  max-width: 1000px; /* Ample breathing room */
+  margin: 0 auto;
+}
+
+/* Make the first card span full width to act as primary entry */
+.saas-grid-primary {
+  grid-column: 1 / -1;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  text-align: left !important;
+  padding: 3rem !important;
+}
+
+/* Premium Feature Cards */
+.feature-card {
+  background: var(--surface-gradient);
+  border-radius: var(--radius-xl);
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: var(--shadow-md);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+  animation: revealCard 0.8s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.feature-card:nth-child(1) { animation-delay: 0.1s; }
+.feature-card:nth-child(2) { animation-delay: 0.2s; }
+.feature-card:nth-child(3) { animation-delay: 0.3s; }
+.feature-card:nth-child(4) { animation-delay: 0.4s; }
+
+.feature-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: var(--shadow-float);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+.icon-container {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(122, 144, 120, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-color);
+  margin-bottom: 1.5rem;
+  border: 1px solid rgba(122, 144, 120, 0.2);
+}
+
+.saas-grid-primary .icon-container {
+  margin-bottom: 0;
+  margin-right: 2rem;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+}
+
+.card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem 0;
+}
+
+.saas-grid-primary .card-title {
+  font-size: 2rem;
+}
+
+.card-description {
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  margin: 0 0 2rem 0;
+  flex: 1;
+}
+
+/* Tiny Stat Widgets embedded in cards */
+.stat-widget-dock {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-widget {
+  background: rgba(255,255,255,0.6);
+  border: 1px solid rgba(122, 144, 120, 0.15);
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.widget-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.widget-lbl {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+/* Premium Arrow Button */
+.arrow-btn {
+  background: var(--primary-gradient);
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.875rem 1.5rem;
+  border-radius: 99px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-glow);
+  width: fit-content;
+  align-self: flex-start;
+}
+
+.arrow-btn svg {
+  transition: transform 0.3s ease;
+}
+
+.feature-card:hover .arrow-btn svg {
+  transform: translateX(4px);
+}
+
+.arrow-btn:active {
+  transform: scale(0.96);
+}
+
+/* Footer */
+.landing-footer {
+  margin-top: 6rem;
+  text-align: center;
+  color: rgba(251, 248, 242, 0.85); /* Legible off-white */
+  font-size: 0.875rem;
+}
+
+/* Animations */
+@keyframes slideDownNav {
+  0% { transform: translateY(-100%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeUpHero {
+  0% { transform: translateY(30px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes revealCard {
+  0% { transform: translateY(40px) scale(0.95); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .saas-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .saas-grid-primary {
+    flex-direction: column !important;
+    text-align: center !important;
+    align-items: center !important;
+    padding: 2rem !important;
+  }
+  
+  .saas-grid-primary .icon-container {
+    margin-right: 0;
+    margin-bottom: 1.5rem;
+  }
+  
+  .stat-widget-dock {
+    justify-content: center;
+  }
+  
+  .arrow-btn {
+    align-self: center;
+  }
+}
