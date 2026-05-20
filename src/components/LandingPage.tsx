@@ -1,16 +1,19 @@
+import { useNavigate } from 'react-router-dom';
 import { Package, Flower2, ChevronRight, Calculator, History, Wallet } from 'lucide-react';
 import type { FlowerData, Order, Expense } from '../types';
-import type { PageView } from '../App';
+import { Navbar } from './Navbar';
+
 import './LandingPage.css';
 
 interface LandingPageProps {
-  onNavigate: (page: PageView) => void;
+  
   flowers: FlowerData[];
   orders: Order[];
   expenses: Expense[];
 }
 
-export function LandingPage({ onNavigate, flowers, orders, expenses }: LandingPageProps) {
+export function LandingPage({ flowers, orders, expenses }: LandingPageProps) {
+  const navigate = useNavigate();
   const totalTypes = flowers.length;
   
   // Calculate average profit margin
@@ -23,37 +26,34 @@ export function LandingPage({ onNavigate, flowers, orders, expenses }: LandingPa
   
   const avgMargin = validFlowers.length > 0 ? (totalMargin / validFlowers.length).toFixed(1) : '0.0';
 
-  // Calculate Studio revenue and profit (Only Paid)
+  // Calculate Studio revenue and profit (Paid & Half Payment)
   const paidOrders = orders.filter(o => o.paymentStatus === 'Paid');
   const pendingOrders = orders.filter(o => o.paymentStatus === 'Pending');
+  const halfPaidOrders = orders.filter(o => o.paymentStatus === 'Half Payment');
 
-  const totalRevenue = paidOrders.reduce((sum, order) => sum + (Number(order.totalPrice) || 0), 0);
-  const totalProfit = paidOrders.reduce((sum, order) => {
-    const profit = Number(order.profit) || (Number(order.totalPrice) - Number(order.totalCost)) || 0;
-    return sum + profit;
-  }, 0);
-  const totalPendingAmount = pendingOrders.reduce((sum, order) => sum + (Number(order.totalPrice) || 0), 0);
+  const totalRevenue = 
+    paidOrders.reduce((sum, order) => sum + (Number(order.totalPrice) || 0), 0) +
+    halfPaidOrders.reduce((sum, order) => sum + ((Number(order.totalPrice) || 0) * 0.5), 0);
+    
+  const totalProfit = 
+    paidOrders.reduce((sum, order) => {
+      const profit = Number(order.profit) || (Number(order.totalPrice) - Number(order.totalCost)) || 0;
+      return sum + profit;
+    }, 0) +
+    halfPaidOrders.reduce((sum, order) => {
+      const profit = Number(order.profit) || (Number(order.totalPrice) - Number(order.totalCost)) || 0;
+      return sum + (profit * 0.5);
+    }, 0);
+    
+  const totalPendingAmount = 
+    pendingOrders.reduce((sum, order) => sum + (Number(order.totalPrice) || 0), 0) +
+    halfPaidOrders.reduce((sum, order) => sum + ((Number(order.totalPrice) || 0) * 0.5), 0);
 
   const totalInvestment = expenses.reduce((sum, exp) => sum + (Number(exp.tripTotal) || 0), 0);
 
   return (
     <div className="landing-container">
-      
-      {/* Glassmorphic Navbar */}
-      <nav className="glass-navbar">
-        <a href="#" className="nav-brand" onClick={(e) => { e.preventDefault(); }}>
-          <Flower2 size={24} strokeWidth={1.5} />
-          <span className="nav-title">Cheniart Studio</span>
-        </a>
-        <div className="nav-links">
-          <a className="nav-link" onClick={() => onNavigate('database')}>Inventory</a>
-          <a className="nav-link" onClick={() => onNavigate('calculator')}>Quote</a>
-          <a className="nav-link" onClick={() => onNavigate('history')}>Orders</a>
-          <a className="nav-link" onClick={() => onNavigate('expenses')}>Expenses</a>
-          <a className="nav-link" onClick={() => onNavigate('stockInventory')}>Live Stock</a>
-          <a className="nav-link" onClick={() => onNavigate('analytics')}>Analytics</a>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Hero Section */}
       <section className="hero-section">
@@ -87,7 +87,7 @@ export function LandingPage({ onNavigate, flowers, orders, expenses }: LandingPa
               </div>
             </div>
 
-            <button className="arrow-btn" onClick={() => onNavigate('database')}>
+            <button className="arrow-btn" onClick={() => navigate('/inventory')}>
               Open Database <ChevronRight size={18} />
             </button>
           </div>
@@ -101,7 +101,7 @@ export function LandingPage({ onNavigate, flowers, orders, expenses }: LandingPa
           <div className="card-content">
             <h2 className="card-title">Order Calculator</h2>
             <p className="card-description">Build real-time quotes dynamically by pulling directly from your live inventory costs.</p>
-            <button className="arrow-btn" onClick={() => onNavigate('calculator')}>
+            <button className="arrow-btn" onClick={() => navigate('/calculator')}>
               Create Quote <ChevronRight size={18} />
             </button>
           </div>
@@ -133,7 +133,7 @@ export function LandingPage({ onNavigate, flowers, orders, expenses }: LandingPa
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '1rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-              <button className="arrow-btn" onClick={() => onNavigate('history')} style={{ margin: 0 }}>
+              <button className="arrow-btn" onClick={() => navigate('/history')} style={{ margin: 0 }}>
                 View Orders <ChevronRight size={18} />
               </button>
               
@@ -162,7 +162,7 @@ export function LandingPage({ onNavigate, flowers, orders, expenses }: LandingPa
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', width: '100%', marginTop: 'auto' }}>
-              <button className="arrow-btn" onClick={() => onNavigate('expenses')} style={{ margin: 0 }}>
+              <button className="arrow-btn" onClick={() => navigate('/expenses')} style={{ margin: 0 }}>
                 Log Expenses <ChevronRight size={18} />
               </button>
             </div>
@@ -177,7 +177,7 @@ export function LandingPage({ onNavigate, flowers, orders, expenses }: LandingPa
           <div className="card-content">
             <h2 className="card-title">Live Stock Tracker</h2>
             <p className="card-description">Visually trace hardware material quantities dynamically utilizing automated sync mapping alongside color-coded indicators.</p>
-            <button className="arrow-btn" onClick={() => onNavigate('stockInventory')} style={{ marginTop: 'auto' }}>
+            <button className="arrow-btn" onClick={() => navigate('/stock')} style={{ marginTop: 'auto' }}>
               Open Inventory <ChevronRight size={18} />
             </button>
           </div>
@@ -191,7 +191,7 @@ export function LandingPage({ onNavigate, flowers, orders, expenses }: LandingPa
           <div className="card-content">
             <h2 className="card-title">Monthly Analytics</h2>
             <p className="card-description">Visualize performance with comprehensive data dashboards, revenue trends, and tracking insight into business growth over time.</p>
-            <button className="arrow-btn" onClick={() => onNavigate('analytics')} style={{ marginTop: 'auto' }}>
+            <button className="arrow-btn" onClick={() => navigate('/analytics')} style={{ marginTop: 'auto' }}>
               View Analytics <ChevronRight size={18} />
             </button>
           </div>

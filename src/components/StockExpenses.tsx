@@ -1,23 +1,32 @@
 import React, { useState } from 'react';
-import { ChevronLeft, Plus, ChevronDown, ChevronUp, Package, Wallet, CheckCircle2, X, Pencil, Trash2 } from 'lucide-react';
-import type { PageView } from '../App';
-import type { Expense, ExpenseItem } from '../types';
+
+import { Plus, ChevronDown, ChevronUp, Package, Wallet, CheckCircle2, X, Pencil, Trash2 } from 'lucide-react';
+import type { Expense, ExpenseItem, StockItem } from '../types';
+import { showToast } from './Toast';
+import { Navbar } from './Navbar';
 
 interface StockExpensesProps {
-  onNavigate: (page: PageView) => void;
+  
   expenses: Expense[];
+  stock: StockItem[];
   onSaveTrip: (tripData: Omit<Expense, 'id'>) => Promise<void>;
   onUpdateTrip?: (id: string, tripData: Partial<Expense>) => Promise<void>;
   onDeleteTrip?: (id: string) => Promise<void>;
 }
 
+interface DynamicCatalogData {
+  colors: string[];
+  types: string[];
+  widths?: string[];
+}
+
 const CATEGORIES = [
   { name: 'Pipe Cleaners', defaultPrice: 80, hasColors: true },
-  { name: 'Wrapping Papers', defaultPrice: 15 },
-  { name: 'Ribbons', defaultPrice: 0 },
+  { name: 'Wrapping Sheets', defaultPrice: 15, hasColors: true, hasTypes: true, hasDynamic: true },
+  { name: 'Ribbons', defaultPrice: 0, hasColors: true, hasTypes: true, hasDynamic: true },
   { name: 'Sticks', defaultPrice: 0 },
   { name: 'Tissue Paper', defaultPrice: 0 },
-  { name: 'Pearl Wrap', defaultPrice: 0 },
+  { name: 'Mesh Wrap', defaultPrice: 0, hasColors: true, hasTypes: true, hasDynamic: true },
   { name: 'Green Tape', defaultPrice: 0 },
   { name: 'Clear Tape', defaultPrice: 0 },
   { name: 'Glue Sticks', defaultPrice: 0 },
@@ -30,7 +39,8 @@ const CATEGORIES = [
   { name: 'Other Item', defaultPrice: 0, hasCustom: true },
 ];
 
-export function StockExpenses({ onNavigate, expenses, onSaveTrip, onUpdateTrip, onDeleteTrip }: StockExpensesProps) {
+export function StockExpenses({ expenses, stock, onSaveTrip, onUpdateTrip, onDeleteTrip }: StockExpensesProps) {
+
   const [expandedTripId, setExpandedTripId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
@@ -39,31 +49,193 @@ export function StockExpenses({ onNavigate, expenses, onSaveTrip, onUpdateTrip, 
   const [basket, setBasket] = useState<Omit<ExpenseItem, 'id'>[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   
-  // Pipe Cleaner Colors setup
-  const [colors, setColors] = useState<string[]>(() => {
-    const savedColors = localStorage.getItem('cheniart_pipe_colors');
-    if (savedColors) return JSON.parse(savedColors);
-    return [
+  // Colors Setup
+  const [colors, setColors] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('cheniart_category_colors');
+    let parsed = saved ? JSON.parse(saved) : null;
+    
+    const oldPipeColors = localStorage.getItem('cheniart_pipe_colors');
+    const defaultPipeColors = oldPipeColors ? JSON.parse(oldPipeColors) : [
       'white', 'red', 'green', 'light blue', 'lavender', 'peach pink', 
       'dark pink', 'light pink', 'brown', 'yellow', 'dark brown', 
       'maroon', 'beige', 'teal', 'turquoise', 'baby pink', 
       'bloody pink', 'dark red', 'dark orange', 'orange'
     ];
+
+    const defaultWrappingColors = ['Clear', 'Pink', 'White', 'Red', 'Brown', 'Maroon', 'Purple', 'Yellow', 'Black', 'Blue'];
+
+    if (!parsed) {
+      parsed = {
+        'Pipe Cleaners': defaultPipeColors,
+        'Wrapping Sheets': defaultWrappingColors,
+        'Ribbons': [],
+        'Mesh Wrap': []
+      };
+    } else {
+      // Restore Wrapping Papers colors
+      if (!parsed['Wrapping Sheets'] || parsed['Wrapping Sheets'].length === 0) {
+        parsed['Wrapping Sheets'] = defaultWrappingColors;
+      } else {
+        defaultWrappingColors.forEach(dc => {
+          if (!parsed['Wrapping Sheets'].some((c: string) => c.toLowerCase() === dc.toLowerCase())) {
+            parsed['Wrapping Sheets'].push(dc);
+          }
+        });
+      }
+      localStorage.setItem('cheniart_category_colors', JSON.stringify(parsed));
+    }
+    
+    return parsed;
   });
+  
+  // Types Setup
+  const [types, setTypes] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('cheniart_category_types');
+    let parsed = saved ? JSON.parse(saved) : null;
+    
+    const defaultTypes = {
+      'Wrapping Sheets': ['Newspaper', 'Waterproof', 'Glossy'],
+      'Ribbons': ['Satin', 'Velvet', 'Organza'],
+      'Mesh Wrap': ['Pearl', 'Plain', 'Dotted']
+    };
+
+    if (!parsed) {
+      parsed = defaultTypes;
+    } else {
+      // Force Resync of Types to ensure defaults exist
+      Object.entries(defaultTypes).forEach(([cat, defaults]) => {
+        if (!parsed[cat]) parsed[cat] = [];
+        defaults.forEach(dt => {
+          if (!parsed[cat].some((t: string) => t.toLowerCase() === dt.toLowerCase())) {
+            parsed[cat].push(dt);
+          }
+        });
+      });
+      localStorage.setItem('cheniart_category_types', JSON.stringify(parsed));
+    }
+    return parsed;
+  });
+
   const [newColorInput, setNewColorInput] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState<number | ''>('');
+
+  const [comboSelection, setComboSelection] = useState<any>({});
+  const [newDynamicInput, setNewDynamicInput] = useState<any>({ field: '', value: '' });
+
+  const [dynamicCatalogs, setDynamicCatalogs] = useState<Record<string, DynamicCatalogData>>(() => {
+    const saved = localStorage.getItem('cheniart_dynamic_catalogs');
+    if (saved) return JSON.parse(saved);
+    return {
+      'Wrapping Sheets': { colors: ['Clear', 'Pink', 'White', 'Red', 'Brown', 'Maroon', 'Purple', 'Yellow', 'Black', 'Blue'], types: ['Newspaper', 'Waterproof', 'Glossy'] },
+      'Ribbons': { colors: ['White', 'Red', 'Pink', 'Gold', 'Silver', 'Blue'], widths: ['0.5 inch', '1 inch', '1.5 inch', '2 inch'] },
+      'Mesh Wrap': { colors: ['White', 'Pink', 'Black', 'Gold', 'Silver'], types: ['Pearl', 'Plain', 'Dotted'] }
+    };
+  });
+
+  const handleAddDynamicAttribute = (category: string, field: keyof DynamicCatalogData) => {
+    if (!newDynamicInput.value?.trim()) return;
+    const val = newDynamicInput.value.trim();
+    
+    const catData = dynamicCatalogs[category] || { colors: [], types: [] };
+    const list = catData[field] || [];
+    
+    if (list.some((i: string) => i.toLowerCase() === val.toLowerCase())) {
+      showToast(`⚠️ This already exists.`);
+      return;
+    }
+
+    const next = {
+      ...dynamicCatalogs,
+      [category]: {
+        ...catData,
+        [field]: [...list, val]
+      }
+    };
+    setDynamicCatalogs(next);
+    localStorage.setItem('cheniart_dynamic_catalogs', JSON.stringify(next));
+    setNewDynamicInput({ field: '', value: '' });
+  };
+
+  const handleDeleteDynamicAttribute = (category: string, field: keyof DynamicCatalogData, val: string) => {
+    const catData = dynamicCatalogs[category];
+    if (!catData) return;
+    
+    const next = {
+      ...dynamicCatalogs,
+      [category]: {
+        ...catData,
+        [field]: (catData[field] as string[]).filter(i => i !== val)
+      }
+    };
+    setDynamicCatalogs(next);
+    localStorage.setItem('cheniart_dynamic_catalogs', JSON.stringify(next));
+  };
   
+  // TypeSplitModal state
+  const [splitModalColor, setSplitModalColor] = useState<{ category: string, color: string } | null>(null);
+  const [splitQuantities, setSplitQuantities] = useState<Record<string, number>>({});
+  const [newTypeInput, setNewTypeInput] = useState('');
+
   // Trip specifics
   const [tripDate, setTripDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleAddColor = () => {
-    if (!newColorInput.trim() || colors.includes(newColorInput.trim())) return;
-    const updatedColors = [...colors, newColorInput.trim()];
-    setColors(updatedColors);
-    localStorage.setItem('cheniart_pipe_colors', JSON.stringify(updatedColors));
+  const handleAddColor = (category: string) => {
+    const val = newColorInput.trim();
+    if (!val) return;
+    
+    const currentList = colors[category] || [];
+    if (currentList.some(c => c.toLowerCase() === val.toLowerCase())) {
+      showToast(`⚠️ This Color already exists. Please select it from the list.`);
+      return;
+    }
+
+    const existingInStock = stock.find(s => s.category === category && s.name.toLowerCase().includes(val.toLowerCase()));
+    if (existingInStock) {
+      showToast(`⚠️ This Color already exists. Please select it from the list.`);
+      return;
+    }
+
+    const next = { ...colors, [category]: [...currentList, val] };
+    setColors(next);
+    localStorage.setItem('cheniart_category_colors', JSON.stringify(next));
     setNewColorInput('');
   };
+
+  const handleAddType = (category: string) => {
+    const val = newTypeInput.trim();
+    if (!val) return;
+
+    const currentList = types[category] || [];
+    if (currentList.some(t => t.toLowerCase() === val.toLowerCase())) {
+      showToast(`⚠️ This Type already exists. Please select it from the list.`);
+      return;
+    }
+
+    const existingInStock = stock.find(s => s.category === category && s.name.toLowerCase().includes(val.toLowerCase()));
+    if (existingInStock) {
+      showToast(`⚠️ This Type already exists. Please select it from the list.`);
+      return;
+    }
+
+    const next = { ...types, [category]: [...currentList, val] };
+    setTypes(next);
+    localStorage.setItem('cheniart_category_types', JSON.stringify(next));
+    setNewTypeInput('');
+  };
+
+  const handleDeleteType = (category: string, typeVal: string) => {
+    const next = { ...types, [category]: (types[category] || []).filter(t => t !== typeVal) };
+    setTypes(next);
+    localStorage.setItem('cheniart_category_types', JSON.stringify(next));
+    
+    setSplitQuantities(prev => {
+      const p = { ...prev };
+      delete p[typeVal];
+      return p;
+    });
+  };
+
 
   const handleAddToBasket = (name: string, defaultPrice: number, qty: number = 1) => {
     setBasket(prev => {
@@ -79,12 +251,24 @@ export function StockExpenses({ onNavigate, expenses, onSaveTrip, onUpdateTrip, 
     });
   };
 
-  const updateBasketItem = (index: number, field: 'qty' | 'unitPrice', value: number) => {
+  const updateBasketItem = (index: number, field: 'qty' | 'unitPrice' | 'subtotal', value: string | number) => {
     setBasket(prev => {
       const newBasket = [...prev];
       const item = { ...newBasket[index] };
-      item[field] = Number(value) || 0;
-      item.subtotal = item.qty * item.unitPrice;
+      const numValue = value === '' ? 0 : Number(value);
+      
+      // Update the specific field
+      if (field === 'qty') item.qty = numValue;
+      else if (field === 'unitPrice') item.unitPrice = numValue;
+      else if (field === 'subtotal') item.subtotal = numValue;
+
+      // Two-way calculation logic
+      if (field === 'subtotal') {
+        item.unitPrice = item.qty > 0 ? Number((item.subtotal / item.qty).toFixed(2)) : 0;
+      } else {
+        item.subtotal = Number((item.qty * item.unitPrice).toFixed(2));
+      }
+      
       newBasket[index] = item;
       return newBasket;
     });
@@ -151,11 +335,8 @@ export function StockExpenses({ onNavigate, expenses, onSaveTrip, onUpdateTrip, 
 
   return (
     <div className="dashboard-container">
-      <header className="dashboard-header">
-        <button className="nav-logo-btn" onClick={() => onNavigate('landing')} title="Back to Dashboard">
-          <ChevronLeft size={24} strokeWidth={2} />
-          <h1 className="nav-script-title">Dashboard</h1>
-        </button>
+      <Navbar />
+      <header className="dashboard-header" style={{ justifyContent: 'flex-end' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <span className="badge">Stock & Expenses</span>
         </div>
@@ -297,42 +478,48 @@ export function StockExpenses({ onNavigate, expenses, onSaveTrip, onUpdateTrip, 
                 </div>
 
                 {/* Sub Menu for active categorical options */}
-                {activeCategory === 'Pipe Cleaners' && (
+                {activeCategory && CATEGORIES.find(c => c.name === activeCategory)?.hasColors && (
                   <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'white', borderRadius: '12px', border: '1px solid var(--primary-color)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                      <h4 style={{ margin: 0 }}>Select Pipe Cleaner Colors</h4>
+                      <h4 style={{ margin: 0 }}>Select {activeCategory} Colors</h4>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <input 
                           type="text" 
                           value={newColorInput} 
                           onChange={e => setNewColorInput(e.target.value)} 
-                          onKeyDown={e => e.key === 'Enter' && handleAddColor()}
+                          onKeyDown={e => e.key === 'Enter' && handleAddColor(activeCategory)}
                           placeholder="New Color..." 
                           className="saas-input" 
                           style={{ width: '120px' }}
                         />
-                        <button onClick={handleAddColor} className="primary-btn" style={{ padding: '0.5rem' }}><Plus size={16} /></button>
+                        <button onClick={() => handleAddColor(activeCategory)} className="primary-btn" style={{ padding: '0.5rem' }}><Plus size={16} /></button>
                       </div>
                     </div>
                     
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      {colors.map(color => {
-                        const inBasketAmt = basket.find(i => i.name === `Pipe Cleaner - ${color}`)?.qty || 0;
+                      {(colors[activeCategory] || []).map(color => {
+                        const inBasketAmt = basket.filter(i => i.name.startsWith(`${activeCategory.replace(/s$/, '')} (${color}`) || i.name === `Pipe Cleaner - ${color}`).reduce((sum, item) => sum + item.qty, 0);
                         return (
                           <div key={color} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.02)', borderRadius: '8px' }}>
                             <span style={{ fontWeight: 500 }}>{color}</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <button onClick={() => {
-                                const index = basket.findIndex(i => i.name === `Pipe Cleaner - ${color}`);
-                                if (index !== -1) {
-                                  if (basket[index].qty <= 1) removeBasketItem(index);
-                                  else updateBasketItem(index, 'qty', basket[index].qty - 1);
-                                }
-                              }} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid rgba(0,0,0,0.1)', background: 'white', cursor: 'pointer' }}>-</button>
-                              
-                              <span style={{ width: '20px', textAlign: 'center', fontWeight: 'bold' }}>{inBasketAmt}</span>
-                              
-                              <button onClick={() => handleAddToBasket(`Pipe Cleaner - ${color}`, 80)} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid var(--primary-color)', background: 'var(--primary-color)', color: 'white', cursor: 'pointer' }}>+</button>
+                              {CATEGORIES.find(c => c.name === activeCategory)?.hasTypes ? (
+                                <button onClick={() => setSplitModalColor({ category: activeCategory, color })} style={{ background: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '6px', padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: '0.875rem' }}>Split / Add</button>
+                              ) : (
+                                <>
+                                  <button onClick={() => {
+                                    const index = basket.findIndex(i => i.name === `Pipe Cleaner - ${color}`);
+                                    if (index !== -1) {
+                                      if (basket[index].qty <= 1) removeBasketItem(index);
+                                      else updateBasketItem(index, 'qty', basket[index].qty - 1);
+                                    }
+                                  }} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid rgba(0,0,0,0.1)', background: 'white', cursor: 'pointer' }}>-</button>
+                                  
+                                  <span style={{ width: '20px', textAlign: 'center', fontWeight: 'bold' }}>{inBasketAmt}</span>
+                                  
+                                  <button onClick={() => handleAddToBasket(`Pipe Cleaner - ${color}`, 80)} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid var(--primary-color)', background: 'var(--primary-color)', color: 'white', cursor: 'pointer' }}>+</button>
+                                </>
+                              )}
                             </div>
                           </div>
                         );
@@ -340,6 +527,84 @@ export function StockExpenses({ onNavigate, expenses, onSaveTrip, onUpdateTrip, 
                     </div>
                   </div>
                 )}
+
+                {(() => {
+                  const activeCatDef = CATEGORIES.find(c => c.name === activeCategory);
+                  if (activeCatDef?.hasDynamic) {
+                    const fields = activeCategory === 'Ribbons' ? ['colors', 'widths'] : ['types', 'colors'];
+                    const fieldLabels = activeCategory === 'Ribbons' ? ['Colors', 'Widths'] : ['Types', 'Colors'];
+                    
+                    const canAddToBasket = fields.every(f => comboSelection[f]);
+                    
+                    return (
+                      <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'white', borderRadius: '12px', border: '1px solid var(--primary-color)' }}>
+                        <h4 style={{ margin: '0 0 1.5rem 0' }}>Build {activeCategory}</h4>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '1.5rem' }}>
+                          {fields.map((field, idx) => (
+                            <div key={field}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <h5 style={{ margin: 0, color: 'var(--text-secondary)' }}>{fieldLabels[idx]}</h5>
+                                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                  <input 
+                                    type="text" 
+                                    value={newDynamicInput.field === field ? newDynamicInput.value : ''} 
+                                    onChange={e => setNewDynamicInput({ field, value: e.target.value })} 
+                                    onKeyDown={e => e.key === 'Enter' && handleAddDynamicAttribute(activeCategory!, field as keyof DynamicCatalogData)}
+                                    placeholder={`New ${fieldLabels[idx]}...`} 
+                                    className="saas-input" 
+                                    style={{ width: '100px', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                  />
+                                  <button onClick={() => handleAddDynamicAttribute(activeCategory!, field as keyof DynamicCatalogData)} className="primary-btn" style={{ padding: '0.25rem 0.5rem' }}><Plus size={14} /></button>
+                                </div>
+                              </div>
+                              
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '150px', overflowY: 'auto' }}>
+                                {(dynamicCatalogs[activeCategory!]?.[field as keyof DynamicCatalogData] || []).map((val: string) => (
+                                  <div key={val} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem', background: comboSelection[field] === val ? 'rgba(122, 144, 120, 0.1)' : 'rgba(0,0,0,0.02)', border: comboSelection[field] === val ? '1px solid var(--primary-color)' : '1px solid transparent', borderRadius: '6px', cursor: 'pointer' }} onClick={() => setComboSelection((prev: any) => ({ ...prev, [field]: val }))}>
+                                    <span style={{ fontSize: '0.875rem' }}>{val}</span>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteDynamicAttribute(activeCategory!, field as keyof DynamicCatalogData, val); }} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5 }}><X size={14}/></button>
+                                  </div>
+                                ))}
+                                {(!dynamicCatalogs[activeCategory!]?.[field as keyof DynamicCatalogData] || dynamicCatalogs[activeCategory!]?.[field as keyof DynamicCatalogData]?.length === 0) && (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem' }}>No {fieldLabels[idx].toLowerCase()} saved yet.</div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <div style={{ paddingTop: '1.5rem', borderTop: '1px solid rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                            {canAddToBasket ? (
+                              <span>Selection: <strong>{activeCategory === 'Ribbons' ? `${comboSelection.colors} - ${comboSelection.widths}` : `${comboSelection.types} - ${comboSelection.colors}`}</strong></span>
+                            ) : (
+                              <span>Please select one from each list</span>
+                            )}
+                          </div>
+                          <button 
+                            className="primary-btn"
+                            disabled={!canAddToBasket}
+                            style={{ opacity: canAddToBasket ? 1 : 0.5 }}
+                            onClick={() => {
+                              const itemName = activeCategory === 'Ribbons' 
+                                ? `Ribbon (${comboSelection.colors} - ${comboSelection.widths})`
+                                : activeCategory === 'Mesh Wrap'
+                                  ? `Mesh Wrap (${comboSelection.types} - ${comboSelection.colors})`
+                                  : `Wrapping Paper (${comboSelection.types} - ${comboSelection.colors})`;
+                                  
+                              handleAddToBasket(itemName, activeCatDef.defaultPrice, 1);
+                              setComboSelection({});
+                            }}
+                          >
+                            Add to Basket
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {activeCategory === 'Other Item' && (
                   <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'white', borderRadius: '12px', border: '1px solid var(--primary-color)' }}>
@@ -421,17 +686,25 @@ export function StockExpenses({ onNavigate, expenses, onSaveTrip, onUpdateTrip, 
                           <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', width: '80px' }}>
                               <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Qty</label>
-                              <input type="number" min="1" value={item.qty} onChange={e => updateBasketItem(index, 'qty', Number(e.target.value))} className="saas-input" style={{ textAlign: 'center' }} />
+                              <input type="number" min="1" step="0.1" value={item.qty === 0 ? '' : item.qty} onChange={e => updateBasketItem(index, 'qty', e.target.value)} className="saas-input" style={{ textAlign: 'center' }} />
                             </div>
                             
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
                               <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Price (₹)</label>
-                              <input type="number" min="0" value={item.unitPrice} onChange={e => updateBasketItem(index, 'unitPrice', Number(e.target.value))} className="saas-input" />
+                              <input type="number" min="0" step="0.1" value={item.unitPrice === 0 ? '' : item.unitPrice} onChange={e => updateBasketItem(index, 'unitPrice', e.target.value)} className="saas-input" />
                             </div>
                             
-                            <div style={{ textAlign: 'right', minWidth: '80px', paddingBottom: '0.5rem' }}>
-                              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Subtotal</div>
-                              <div style={{ fontWeight: 'bold', color: 'var(--primary-dark)' }}>₹{item.subtotal}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '80px' }}>
+                              <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Subtotal (₹)</label>
+                              <input 
+                                type="number" 
+                                min="0" 
+                                step="0.1"
+                                value={item.subtotal === 0 ? '' : item.subtotal} 
+                                onChange={e => updateBasketItem(index, 'subtotal', e.target.value)} 
+                                className="saas-input" 
+                                style={{ fontWeight: 'bold', color: 'var(--primary-dark)', textAlign: 'right' }}
+                              />
                             </div>
                           </div>
                         </div>
@@ -457,6 +730,80 @@ export function StockExpenses({ onNavigate, expenses, onSaveTrip, onUpdateTrip, 
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Type & Split Modal */}
+      {splitModalColor && (
+        <div className="modal-overlay" style={{ zIndex: 1000 }}>
+          <div className="modal-content" style={{ width: '90%', maxWidth: '500px', padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0 }}>Split {splitModalColor.category} ({splitModalColor.color})</h3>
+              <button className="icon-btn" onClick={() => { setSplitModalColor(null); setSplitQuantities({}); setNewTypeInput(''); }}><X size={20} /></button>
+            </div>
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                <input 
+                  type="text" 
+                  value={newTypeInput} 
+                  onChange={e => setNewTypeInput(e.target.value)} 
+                  onKeyDown={e => e.key === 'Enter' && handleAddType(splitModalColor.category)}
+                  placeholder="New Type..." 
+                  className="saas-input" 
+                  style={{ flex: 1 }}
+                />
+                <button onClick={() => handleAddType(splitModalColor.category)} className="primary-btn" style={{ padding: '0.5rem 1rem' }}><Plus size={16} /></button>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
+                {(types[splitModalColor.category] || []).map(typeVal => {
+                  const qty = splitQuantities[typeVal] || 0;
+                  return (
+                    <div key={typeVal} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'rgba(0,0,0,0.02)', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.05)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontWeight: 500 }}>{typeVal}</span>
+                        <button onClick={() => handleDeleteType(splitModalColor.category, typeVal)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5, display: 'flex', padding: 0 }}><X size={14}/></button>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <button onClick={() => setSplitQuantities(p => ({ ...p, [typeVal]: Math.max(0, qty - 1) }))} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid rgba(0,0,0,0.1)', background: 'white', cursor: 'pointer' }}>-</button>
+                        <span style={{ width: '20px', textAlign: 'center', fontWeight: 'bold' }}>{qty}</span>
+                        <button onClick={() => setSplitQuantities(p => ({ ...p, [typeVal]: qty + 1 }))} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid var(--primary-color)', background: 'var(--primary-color)', color: 'white', cursor: 'pointer' }}>+</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1.5rem', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+              <div style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>
+                Total: <span style={{ color: 'var(--text-primary)', fontSize: '1.1rem' }}>{Object.values(splitQuantities).reduce((a,b)=>a+b, 0)}</span>
+              </div>
+              <button 
+                className="primary-btn" 
+                disabled={Object.values(splitQuantities).reduce((a,b)=>a+b, 0) === 0}
+                style={{ opacity: Object.values(splitQuantities).reduce((a,b)=>a+b, 0) === 0 ? 0.5 : 1 }}
+                onClick={() => {
+                  const catDef = CATEGORIES.find(c => c.name === splitModalColor.category);
+                  const price = catDef?.defaultPrice || 0;
+                  const catSingular = splitModalColor.category.replace(/s$/, ''); // e.g., Wrapping Paper, Ribbon
+                  
+                  Object.entries(splitQuantities).forEach(([typeVal, qty]) => {
+                    if (qty > 0) {
+                      const itemName = `${catSingular} (${splitModalColor.color} - ${typeVal})`;
+                      handleAddToBasket(itemName, price, qty);
+                    }
+                  });
+                  
+                  setSplitModalColor(null);
+                  setSplitQuantities({});
+                }}
+              >
+                Add to Basket
+              </button>
+            </div>
           </div>
         </div>
       )}

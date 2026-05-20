@@ -1,3 +1,15 @@
+export interface RecipeItem {
+  id: string;
+  name: string; // Color, Type, or Accessory name
+  qty: number;
+}
+
+export interface ProductRecipe {
+  pipeCleaners: RecipeItem[];
+  wrapping: RecipeItem[];
+  accessories: RecipeItem[];
+}
+
 export interface FlowerData {
   id: string;
   name: string;
@@ -10,9 +22,10 @@ export interface FlowerData {
   category?: 'Flowers' | 'Keychain' | 'Flower Pots';
   keychainQty?: number;
   cupsQty?: number;
+  recipe?: ProductRecipe;
 }
 
-export type PaymentStatus = 'Pending' | 'Paid';
+export type PaymentStatus = 'Pending' | 'Paid' | 'Half Payment';
 export type PaymentMode = 'Cash' | 'UPI' | 'Bank Transfer';
 
 export interface OrderItem {
@@ -22,12 +35,13 @@ export interface OrderItem {
   quantity: number;
   unitCost: number; // Snapshot of cost at time of order
   unitSellingPrice: number; // Snapshot of price at time of order
+  bouquetIndex?: number;
 }
 
 export interface AdditionalFee {
   id: string;
   name: string;
-  type: 'Bouquet Arrangement' | 'Delivery & Packaging' | 'Custom';
+  type: 'Bouquet Arrangement' | 'Packaging' | 'Shipping' | 'Custom';
   amount: number;
   isIncludedInCost?: boolean;
 }
@@ -44,9 +58,14 @@ export interface Order {
   extraItemName?: string;
   extraItemPrice?: number;
   
+  shippingType?: 'None' | 'Maharashtra & Gujarat' | 'Across India';
+  shippingCost?: number;
+  
   totalCost: number;
   totalPrice: number;
   profit: number;
+  actualMaterialCost?: number; // Cost of materials confirmed in usage pop-up
+  isStockDeducted?: boolean; // Whether stock was deducted for this order
   paymentStatus: PaymentStatus;
   paymentMode: PaymentMode;
   scheduledDeliveryDate?: string;
@@ -71,6 +90,6 @@ export interface Expense {
 export interface StockItem {
   id: string;
   name: string;
-  category: 'Pipe Cleaners' | 'Wrapping Sheets' | 'Accessories';
+  category: 'Pipe Cleaners' | 'Wrapping Sheets' | 'Accessories' | 'Mesh Wrap' | 'Ribbons';
   count: number;
 }

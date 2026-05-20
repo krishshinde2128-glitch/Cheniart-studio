@@ -1,13 +1,14 @@
+
 import { useState, useMemo } from 'react';
-import { ChevronLeft, TrendingUp, DollarSign, ShoppingBag, Package, Download } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingBag, Package, Download } from 'lucide-react';
 import { 
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import type { Order, Expense } from '../types';
-import type { PageView } from '../App';
+import { Navbar } from './Navbar';
 
 interface MonthlyAnalyticsProps {
-  onNavigate: (page: PageView) => void;
+  
   orders: Order[];
   expenses: Expense[];
 }
@@ -18,8 +19,9 @@ function getMonthKey(dateObj: Date) {
   return dateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 
-export function MonthlyAnalytics({ onNavigate, orders, expenses }: MonthlyAnalyticsProps) {
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('Current Month');
+export function MonthlyAnalytics({ orders, expenses }: MonthlyAnalyticsProps) {
+
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('All Time');
 
   const { filteredOrders, filteredExpenses, chartData } = useMemo(() => {
     const now = new Date();
@@ -48,7 +50,7 @@ export function MonthlyAnalytics({ onNavigate, orders, expenses }: MonthlyAnalyt
     }
 
     // Filter data
-    const validOrders = orders.filter(o => o.paymentStatus === 'Paid' && new Date(o.date) >= startDate);
+    const validOrders = orders.filter(o => (o.paymentStatus === 'Paid' || o.paymentStatus === 'Half Payment') && new Date(o.date) >= startDate);
     const validExpenses = expenses.filter(e => new Date(e.date) >= startDate);
 
     // Grouping by Month
@@ -67,9 +69,11 @@ export function MonthlyAnalytics({ onNavigate, orders, expenses }: MonthlyAnalyt
     validOrders.forEach(o => {
       const key = getMonthKey(new Date(o.date));
       if (monthlyMap[key]) {
-        monthlyMap[key].revenue += Number(o.totalPrice) || 0;
-        monthlyMap[key].profit += Number(o.profit) || (Number(o.totalPrice) - Number(o.totalCost)) || 0;
-        monthlyMap[key].orders += 1;
+        const multiplier = o.paymentStatus === 'Half Payment' ? 0.5 : 1;
+        monthlyMap[key].revenue += (Number(o.totalPrice) || 0) * multiplier;
+        monthlyMap[key].profit += (Number(o.profit) || (Number(o.totalPrice) - Number(o.totalCost)) || 0) * multiplier;
+        monthlyMap[key].spent += (Number(o.shippingCost) || 0) * multiplier;
+        monthlyMap[key].orders += multiplier;
       }
     });
 
@@ -88,7 +92,7 @@ export function MonthlyAnalytics({ onNavigate, orders, expenses }: MonthlyAnalyt
   const stats = useMemo(() => {
     const totalRevenue = filteredOrders.reduce((sum, o) => sum + (Number(o.totalPrice) || 0), 0);
     const totalProfit = filteredOrders.reduce((sum, o) => sum + (Number(o.profit) || (Number(o.totalPrice) - Number(o.totalCost)) || 0), 0);
-    const totalSpent = filteredExpenses.reduce((sum, e) => sum + (Number(e.tripTotal) || 0), 0);
+    const totalSpent = filteredExpenses.reduce((sum, e) => sum + (Number(e.tripTotal) || 0), 0) + filteredOrders.reduce((sum, o) => sum + (Number(o.shippingCost) || 0), 0);
     const totalOrders = filteredOrders.length;
 
     return { totalRevenue, totalProfit, totalSpent, totalOrders };
@@ -113,16 +117,9 @@ export function MonthlyAnalytics({ onNavigate, orders, expenses }: MonthlyAnalyt
 
   return (
     <div className="dashboard-container">
+      <Navbar />
       <header className="dashboard-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button 
-            className="nav-logo-btn" 
-            onClick={() => onNavigate('landing')}
-            title="Back to Dashboard"
-          >
-            <ChevronLeft size={24} strokeWidth={2} />
-            <h1 className="nav-script-title">Dashboard</h1>
-          </button>
           <span className="badge" style={{ backgroundColor: 'white' }}>Monthly Analytics</span>
         </div>
         <div>

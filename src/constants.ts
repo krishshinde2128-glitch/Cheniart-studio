@@ -6,6 +6,16 @@ export const UNIT_PRICES = {
   GLUE_SET: 3.5,
 };
 
+export const getMaterialCost = (category: string, name: string, qty: number): number => {
+  let unitCost = 0;
+  if (category === 'Pipe Cleaners' || name.toLowerCase().includes('pipe cleaner')) unitCost = 0.8;
+  else if (name.toLowerCase().includes('pollen')) unitCost = 0.2815;
+  else if (name.toLowerCase().includes('glue')) unitCost = 3.5;
+  else if (name.toLowerCase().includes('keychain')) unitCost = 2.5;
+  else if (name.toLowerCase().includes('cup') || name.toLowerCase().includes('pot')) unitCost = 12.4;
+  return unitCost * qty;
+};
+
 export const INITIAL_FLOWERS: FlowerData[] = [
   { id: '1', name: 'spiral leaves', pipeCleanerQty: 7, pollenQty: 0, glueQty: 1, extraCosts: 0, sellingPrice: 30 },
   { id: '2', name: 'flat leaves', pipeCleanerQty: 7, pollenQty: 0, glueQty: 1, extraCosts: 0, sellingPrice: 30 },

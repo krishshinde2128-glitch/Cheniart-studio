@@ -1,21 +1,33 @@
 import React, { useState, useMemo } from 'react';
-import { Flower2, Trash2, ArrowUpDown, ChevronDown, ChevronUp, Edit3 } from 'lucide-react';
+
+import { Trash2, ArrowUpDown, ChevronDown, ChevronUp, Edit3, Plus, RefreshCw } from 'lucide-react';
 import type { Order, PaymentStatus, PaymentMode, FlowerData } from '../types';
 import { OrderCalculator } from './OrderCalculator';
+import { showToast } from './Toast';
+import { Navbar } from './Navbar';
 
 interface OrderHistoryProps {
-  onNavigate: (page: 'landing') => void;
+  
   orders: Order[];
-  onUpdateOrder: (id: string, newData: Partial<Order>) => Promise<void>;
+  onUpdateOrder: (updatedOrder: Partial<Order> & { id: string }) => Promise<void>;
   onDeleteOrder: (id: string) => Promise<void>;
+  onAddOrder: (orderData: Omit<Order, 'id'>) => Promise<any>;
   flowers: FlowerData[];
 }
 
-export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder, flowers }: OrderHistoryProps) {
+export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder, flowers }: OrderHistoryProps) {
+
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
-  const [filterMode, setFilterMode] = useState<'all' | 'pending'>('all');
+  const [showPending, setShowPending] = useState(false);
+  const [showHalfPayments, setShowHalfPayments] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [editOrderModal, setEditOrderModal] = useState<Order | null>(null);
+
+  const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
+  const [repeatOrderPrompt, setRepeatOrderPrompt] = useState<Order | null>(null);
+  const [repeatCustomerName, setRepeatCustomerName] = useState('');
+  const [repeatPrice, setRepeatPrice] = useState('');
+  const [repeatPaymentStatus, setRepeatPaymentStatus] = useState<PaymentStatus>('Pending');
 
   const [editingCell, setEditingCell] = useState<{ id: string, field: keyof Order } | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -38,11 +50,11 @@ export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder,
 
     if (editingCell.field === 'totalPrice') {
       const newPrice = parseFloat(editValue) || 0;
-      await onUpdateOrder(editingCell.id, { totalPrice: newPrice, profit: newPrice - targetOrder.totalCost });
+      await onUpdateOrder({ id: editingCell.id, totalPrice: newPrice, profit: newPrice - targetOrder.totalCost });
     } else if (editingCell.field === 'date') {
-      await onUpdateOrder(editingCell.id, { date: new Date(editValue).toISOString() });
+      await onUpdateOrder({ id: editingCell.id, date: new Date(editValue).toISOString() });
     } else if (editingCell.field === 'customerName') {
-      await onUpdateOrder(editingCell.id, { customerName: editValue });
+      await onUpdateOrder({ id: editingCell.id, customerName: editValue });
     }
       
     setEditingCell(null);
@@ -50,15 +62,18 @@ export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder,
 
   const sortedOrders = useMemo(() => {
     let result = [...orders];
-    if (filterMode === 'pending') {
-      result = result.filter(o => o.paymentStatus === 'Pending');
+    if (showPending || showHalfPayments) {
+      result = result.filter(o => 
+        (showPending && o.paymentStatus === 'Pending') || 
+        (showHalfPayments && o.paymentStatus === 'Half Payment')
+      );
     }
     return result.sort((a, b) => {
       const dateA = new Date(a.date).getTime();
       const dateB = new Date(b.date).getTime();
       return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
-  }, [orders, sortOrder, filterMode]);
+  }, [orders, sortOrder, showPending, showHalfPayments]);
   const handleDelete = async (order: Order) => {
     const flowerNames = order.items.map(i => i.flowerName).join(', ');
     if (window.confirm(`Are you sure you want to delete this order for ${flowerNames}?`)) {
@@ -67,23 +82,16 @@ export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder,
   };
 
   const handleStatusChange = async (id: string, newStatus: PaymentStatus) => {
-    await onUpdateOrder(id, { paymentStatus: newStatus });
+    await onUpdateOrder({ id, paymentStatus: newStatus });
   };
 
   const handleModeChange = async (id: string, newMode: PaymentMode) => {
-    await onUpdateOrder(id, { paymentMode: newMode });
+    await onUpdateOrder({ id, paymentMode: newMode });
   };
   return (
     <div className="dashboard-container">
-      <header className="dashboard-header">
-        <button 
-          className="nav-logo-btn" 
-          onClick={() => onNavigate('landing')}
-          title="Back to Dashboard"
-        >
-          <Flower2 size={24} strokeWidth={2} />
-          <h1 className="nav-script-title">Cheniart Studio</h1>
-        </button>
+      <Navbar />
+      <header className="dashboard-header" style={{ justifyContent: 'flex-end' }}>
         <span className="badge">Order History</span>
       </header>
       <main className="dashboard-content">
@@ -98,40 +106,39 @@ export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder,
             {/* Filter Controls */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', paddingBottom: '0.5rem' }}>
               <button
-                onClick={() => setFilterMode('pending')}
+                onClick={() => setShowHalfPayments(!showHalfPayments)}
                 style={{
-                  backgroundColor: filterMode === 'pending' ? '#fef2f2' : 'white',
-                  color: filterMode === 'pending' ? '#ef4444' : 'var(--text-secondary)',
-                  border: `1px solid ${filterMode === 'pending' ? '#fca5a5' : 'rgba(0,0,0,0.1)'}`,
+                  backgroundColor: showHalfPayments ? '#fffbeb' : 'white',
+                  color: showHalfPayments ? '#d97706' : 'var(--text-secondary)',
+                  border: `1px solid ${showHalfPayments ? '#fcd34d' : 'rgba(0,0,0,0.1)'}`,
                   padding: '0.6rem 1.25rem',
                   borderRadius: 'var(--radius-full)',
                   fontWeight: 600,
                   fontSize: '0.875rem',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  boxShadow: filterMode === 'pending' ? '0 2px 8px rgba(239, 68, 68, 0.15)' : 'none'
+                  boxShadow: showHalfPayments ? '0 2px 8px rgba(217, 119, 6, 0.15)' : 'none'
                 }}
               >
-                Show Pending Payments
+                Show Half Payments
               </button>
-              {filterMode === 'pending' && (
-                <button
-                  onClick={() => setFilterMode('all')}
-                  style={{
-                    backgroundColor: 'white',
-                    color: 'var(--text-primary)',
-                    border: '1px solid rgba(0,0,0,0.1)',
-                    padding: '0.6rem 1.25rem',
-                    borderRadius: 'var(--radius-full)',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  Show All Orders
-                </button>
-              )}
+              <button
+                onClick={() => setShowPending(!showPending)}
+                style={{
+                  backgroundColor: showPending ? '#fef2f2' : 'white',
+                  color: showPending ? '#ef4444' : 'var(--text-secondary)',
+                  border: `1px solid ${showPending ? '#fca5a5' : 'rgba(0,0,0,0.1)'}`,
+                  padding: '0.6rem 1.25rem',
+                  borderRadius: 'var(--radius-full)',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: showPending ? '0 2px 8px rgba(239, 68, 68, 0.15)' : 'none'
+                }}
+              >
+                Show Pending
+              </button>
             </div>
 
             <div className="table-wrapper">
@@ -164,8 +171,8 @@ export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder,
                       style={{ 
                         cursor: 'pointer', 
                         transition: 'all 0.2s',
-                        backgroundColor: (filterMode === 'pending' && order.paymentStatus === 'Pending') ? 'rgba(239, 68, 68, 0.03)' : 'transparent',
-                        boxShadow: (filterMode === 'pending' && order.paymentStatus === 'Pending') ? 'inset 3px 0 0 #ef4444' : 'none'
+                        backgroundColor: (showPending && order.paymentStatus === 'Pending') ? 'rgba(239, 68, 68, 0.03)' : (showHalfPayments && order.paymentStatus === 'Half Payment') ? 'rgba(217, 119, 6, 0.03)' : 'transparent',
+                        boxShadow: (showPending && order.paymentStatus === 'Pending') ? 'inset 3px 0 0 #ef4444' : (showHalfPayments && order.paymentStatus === 'Half Payment') ? 'inset 3px 0 0 #d97706' : 'none'
                       }} 
                       onClick={() => setExpandedOrderId(prev => prev === order.id ? null : order.id)}
                     >
@@ -289,7 +296,7 @@ export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder,
                             <button 
                               onClick={async () => {
                                 if (window.confirm('Are you sure this order is delivered?')) {
-                                  await onUpdateOrder(order.id, { isDelivered: true });
+                                  await onUpdateOrder({ id: order.id, isDelivered: true });
                                 }
                               }}
                               style={{ 
@@ -352,12 +359,13 @@ export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder,
                             fontSize: '0.875rem',
                             fontWeight: 500,
                             border: 'none',
-                            backgroundColor: order.paymentStatus === 'Pending' ? '#fee2e2' : 'var(--primary-color)',
-                            color: order.paymentStatus === 'Pending' ? '#991b1b' : 'white',
+                            backgroundColor: order.paymentStatus === 'Pending' ? '#fee2e2' : order.paymentStatus === 'Half Payment' ? '#fef3c7' : 'var(--primary-color)',
+                            color: order.paymentStatus === 'Pending' ? '#991b1b' : order.paymentStatus === 'Half Payment' ? '#d97706' : 'white',
                             cursor: 'pointer'
                           }}
                         >
                           <option value="Pending">Pending</option>
+                          <option value="Half Payment">Half Payment</option>
                           <option value="Paid">Paid</option>
                         </select>
                       </td>
@@ -375,6 +383,19 @@ export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder,
                       </td>
                       <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setRepeatOrderPrompt(order); 
+                              setRepeatCustomerName(order.customerName || '');
+                              setRepeatPrice(order.totalPrice.toString());
+                              setRepeatPaymentStatus('Pending');
+                            }}
+                            style={{ color: 'var(--text-secondary)', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', padding: '0.5rem' }}
+                            title="Repeat Order"
+                          >
+                            <RefreshCw size={18} />
+                          </button>
                           <button 
                             onClick={(e) => { e.stopPropagation(); setEditOrderModal(order); }}
                             style={{ color: 'var(--text-secondary)', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', padding: '0.5rem' }}
@@ -434,6 +455,17 @@ export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder,
                                         <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 500 }}>₹{fee.amount.toFixed(0)}</td>
                                       </tr>
                                     ))}
+
+                                    {!!order.shippingCost && order.shippingCost > 0 && (
+                                      <tr>
+                                        <td style={{ padding: '0.5rem 1rem' }}>
+                                          <span style={{ fontSize: '0.65rem', backgroundColor: 'rgba(0,0,0,0.05)', padding: '0.1rem 0.3rem', borderRadius: '4px', marginRight: '0.5rem' }}>SHIPPING</span>
+                                          {order.shippingType}
+                                        </td>
+                                        <td style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>-</td>
+                                        <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 500 }}>₹{order.shippingCost.toFixed(0)}</td>
+                                      </tr>
+                                    )}
                                     
                                     {/* Legacy fee fallback rendering */}
                                     {!order.additionalFees && (
@@ -528,14 +560,184 @@ export function OrderHistory({ onNavigate, orders, onUpdateOrder, onDeleteOrder,
             </div>
             
             <OrderCalculator 
-              onNavigate={() => {}} 
               flowers={flowers} 
               initialOrder={editOrderModal}
               isModal={true}
               onSaveOrder={async (updatedOrder) => {
-                const { id, ...orderData } = updatedOrder;
-                await onUpdateOrder(id, orderData);
-                setEditOrderModal(null);
+                try {
+                  await onUpdateOrder(updatedOrder);
+                  setEditOrderModal(null);
+                  showToast("✅ Order Updated!");
+                } catch (error) {
+                  console.error("Failed to update order:", error);
+                  showToast("❌ Failed to update order. Check console.");
+                }
+              }} 
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Repeat Order Modal */}
+      {repeatOrderPrompt && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000,
+          padding: '2rem'
+        }} onClick={() => setRepeatOrderPrompt(null)}>
+          <div 
+            onClick={e => e.stopPropagation()} 
+            style={{ 
+              backgroundColor: '#FAFAF9',
+              width: '100%', maxWidth: '400px',
+              borderRadius: 'var(--radius-lg)', padding: '2rem',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' 
+            }}
+          >
+            <h2 style={{ fontSize: '1.5rem', fontFamily: "'Playfair Display', serif", margin: '0 0 1.5rem 0', color: 'var(--primary-color)' }}>Repeat Order</h2>
+            
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>New Customer Name</label>
+              <input 
+                type="text" 
+                value={repeatCustomerName} 
+                onChange={e => setRepeatCustomerName(e.target.value)} 
+                className="saas-input" 
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>New Price (₹)</label>
+              <input 
+                type="number" 
+                value={repeatPrice} 
+                onChange={e => setRepeatPrice(e.target.value)} 
+                className="saas-input" 
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '2rem' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Payment Status</label>
+              <select 
+                value={repeatPaymentStatus} 
+                onChange={e => setRepeatPaymentStatus(e.target.value as PaymentStatus)} 
+                className="saas-select" 
+                style={{ width: '100%' }}
+              >
+                <option value="Pending">Pending</option>
+                <option value="Half Payment">Half Payment</option>
+                <option value="Paid">Paid</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button 
+                onClick={() => setRepeatOrderPrompt(null)} 
+                className="flat-btn" 
+                style={{ flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={async () => {
+                  const duplicatedOrder: Omit<Order, 'id'> = {
+                    date: new Date().toISOString(),
+                    customerName: repeatCustomerName,
+                    items: repeatOrderPrompt.items,
+                    additionalFees: repeatOrderPrompt.additionalFees,
+                    shippingType: repeatOrderPrompt.shippingType,
+                    shippingCost: repeatOrderPrompt.shippingCost,
+                    bouquetFee: repeatOrderPrompt.bouquetFee,
+                    deliveryFee: repeatOrderPrompt.deliveryFee,
+                    extraItemName: repeatOrderPrompt.extraItemName,
+                    extraItemPrice: repeatOrderPrompt.extraItemPrice,
+                    totalCost: repeatOrderPrompt.totalCost,
+                    totalPrice: parseFloat(repeatPrice) || repeatOrderPrompt.totalPrice,
+                    profit: (parseFloat(repeatPrice) || repeatOrderPrompt.totalPrice) - repeatOrderPrompt.totalCost,
+                    paymentStatus: repeatPaymentStatus,
+                    paymentMode: 'Cash',
+                    isDelivered: false
+                  };
+                  await onAddOrder(duplicatedOrder);
+                  setRepeatOrderPrompt(null);
+                }} 
+                className="primary-btn" 
+                style={{ flex: 1 }}
+              >
+                Duplicate Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add FAB */}
+      <button 
+        className="fab-btn" 
+        onClick={() => setIsQuickAddModalOpen(true)} 
+        title="Quick Add Order"
+        style={{
+          backgroundColor: 'var(--primary-color)',
+          color: 'white',
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 4px 12px rgba(122, 144, 120, 0.4)',
+          cursor: 'pointer',
+          border: 'none',
+          zIndex: 100,
+          transition: 'transform 0.2s, box-shadow 0.2s',
+        }}
+        onMouseOver={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(122, 144, 120, 0.5)'; }}
+        onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(122, 144, 120, 0.4)'; }}
+      >
+        <Plus size={28} />
+      </button>
+
+      {/* Quick Add Modal */}
+      {isQuickAddModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000,
+          padding: '2rem'
+        }} onClick={() => setIsQuickAddModalOpen(false)}>
+          <div 
+            onClick={e => e.stopPropagation()} 
+            style={{ 
+              backgroundColor: '#FAFAF9',
+              width: '100%', maxWidth: '1400px', height: '90vh', overflowY: 'auto',
+              borderRadius: 'var(--radius-lg)', padding: '2rem',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' 
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+              <div>
+                <h2 style={{ fontSize: '1.75rem', fontFamily: "'Playfair Display', serif", margin: '0 0 0.5rem 0', color: 'var(--primary-color)' }}>Quick Add Order</h2>
+                <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Create a new quote/order directly to history</div>
+              </div>
+              <button 
+                onClick={() => setIsQuickAddModalOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '2rem', color: 'var(--text-secondary)', lineHeight: 1, padding: '0.5rem' }}
+              >&times;</button>
+            </div>
+            
+            <OrderCalculator 
+              flowers={flowers} 
+              isModal={true}
+              onSaveOrder={async (order) => {
+                const { id, ...orderData } = order;
+                await onAddOrder(orderData);
+                setIsQuickAddModalOpen(false);
               }} 
             />
           </div>
