@@ -302,7 +302,7 @@ function App() {
       const costPrice = calculateProductCost(flower);
 
       const profit = flower.sellingPrice - costPrice;
-      const hasCustomMargin = flower.targetMargin !== undefined && flower.targetMargin !== null && flower.targetMargin !== "" && flower.targetMargin !== 0;
+      const hasCustomMargin = flower.targetMargin !== undefined && flower.targetMargin !== null && (flower.targetMargin as any) !== "" && flower.targetMargin !== 0;
       const profitMargin = hasCustomMargin ? Number(flower.targetMargin) : (flower.sellingPrice > 0 ? (profit / flower.sellingPrice) * 100 : 0);
 
       return {
@@ -528,7 +528,7 @@ function App() {
                               <td className="number-col font-bold highlight-green">
                                 <div className="editable-wrapper" style={{ backgroundColor: 'rgba(122, 144, 120, 0.1)', border: '1px solid rgba(122, 144, 120, 0.2)', padding: '0.1rem 0.5rem', borderRadius: '4px', width: 'fit-content', marginLeft: 'auto' }}>
                                   <input
-                                    type="number" value={row.profitMargin != null && row.profitMargin !== "" ? Number(row.profitMargin).toFixed(1) : ''}
+                                    type="number" value={row.profitMargin != null && (row.profitMargin as any) !== "" ? Number(row.profitMargin).toFixed(1) : ''}
                                     onChange={(e) => handleUpdateFlowerDatabase(row.id, 'targetMargin', e.target.value)}
                                     className="price-input" style={{ width: '50px', backgroundColor: 'transparent', color: 'var(--primary-color)' }}
                                   />
@@ -629,7 +629,7 @@ function App() {
                               <td className="number-col font-bold highlight-green">
                                 <div className="editable-wrapper" style={{ backgroundColor: 'rgba(122, 144, 120, 0.1)', border: '1px solid rgba(122, 144, 120, 0.2)', padding: '0.1rem 0.5rem', borderRadius: '4px', width: 'fit-content', marginLeft: 'auto' }}>
                                   <input
-                                    type="number" value={row.profitMargin != null && row.profitMargin !== "" ? Number(row.profitMargin).toFixed(1) : ''}
+                                    type="number" value={row.profitMargin != null && (row.profitMargin as any) !== "" ? Number(row.profitMargin).toFixed(1) : ''}
                                     onChange={(e) => handleUpdateFlowerDatabase(row.id, 'targetMargin', e.target.value)}
                                     className="price-input" style={{ width: '50px', backgroundColor: 'transparent', color: 'var(--primary-color)' }}
                                   />
@@ -730,7 +730,7 @@ function App() {
                               <td className="number-col font-bold highlight-green">
                                 <div className="editable-wrapper" style={{ backgroundColor: 'rgba(122, 144, 120, 0.1)', border: '1px solid rgba(122, 144, 120, 0.2)', padding: '0.1rem 0.5rem', borderRadius: '4px', width: 'fit-content', marginLeft: 'auto' }}>
                                   <input
-                                    type="number" value={row.profitMargin != null && row.profitMargin !== "" ? Number(row.profitMargin).toFixed(1) : ''}
+                                    type="number" value={row.profitMargin != null && (row.profitMargin as any) !== "" ? Number(row.profitMargin).toFixed(1) : ''}
                                     onChange={(e) => handleUpdateFlowerDatabase(row.id, 'targetMargin', e.target.value)}
                                     className="price-input" style={{ width: '50px', backgroundColor: 'transparent', color: 'var(--primary-color)' }}
                                   />
