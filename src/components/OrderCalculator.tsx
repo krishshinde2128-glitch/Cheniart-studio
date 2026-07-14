@@ -14,7 +14,19 @@ interface OrderCalculatorProps {
 }
 
 const getFlowerCost = (f: FlowerData) => {
-  return (f.pipeCleanerQty * 0.8) + (f.pollenQty * 0.2815) + (f.glueQty * 3.5) + (f.extraCosts || 0);
+  const pc = Number(f.pipeCleanerQty || 0) * 0.8;
+  const pollen = Number(f.pollenQty || 0) * 0.2815;
+  const extra = Number(f.extraCosts || 0);
+  const foamBall = f.hasFoamBall ? 16.6 : 0;
+
+  if (f.category === 'Keychain') {
+    return pc + pollen + extra + foamBall + 2.5;
+  }
+  if (f.category === 'Flower Pots') {
+    return pc + extra + foamBall + 12.4;
+  }
+  const glue = Number(f.glueQty || 0) * 3.5;
+  return pc + pollen + extra + foamBall + glue;
 };
 
 export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }: OrderCalculatorProps) {
@@ -213,8 +225,8 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
     const additionalFeesTotal = additionalFees.reduce((sum, f) => sum + f.amount, 0);
     const totalArrangementFees = Object.values(sectionInputs).reduce((sum, state) => sum + (state.arrangementFee || 0), 0);
     
-    // New logic: Total Base Cost is just Bouquet Costs + Shipping
-    const finalTotalCost = sumOfBouquetCosts + shippingCost; 
+    // New logic: Total Base Cost is Bouquet Costs + Additional Fees + Shipping
+    const finalTotalCost = sumOfBouquetCosts + additionalFeesTotal + shippingCost; 
     const calculatedTotalPrice = itemsTotalPrice + additionalFeesTotal + totalArrangementFees + shippingCost;
     
     // Manual Quote Override applied here
@@ -672,7 +684,7 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
                     <span style={{ opacity: 0.9, fontSize: '1.0625rem' }}>Total Base Cost:</span>
                     {shippingCost > 0 && (
                       <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '2px' }}>
-                        [₹{(totals.cost - shippingCost).toFixed(0)} Materials + ₹{shippingCost} Shipping]
+                        [₹{(totals.cost - shippingCost).toFixed(0)} Materials/Fees + ₹{shippingCost} Shipping]
                       </div>
                     )}
                   </div>

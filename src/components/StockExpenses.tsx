@@ -422,8 +422,8 @@ export function StockExpenses({ expenses, stock, onSaveTrip, onUpdateTrip, onDel
 
       {/* Shopping Trip Modal */}
       {isModalOpen && (
-        <div className="modal-overlay" style={{ alignItems: 'flex-start', paddingTop: '2rem' }}>
-          <div className="modal-content" style={{ width: '95%', maxWidth: '1000px', height: '90vh', minHeight: '600px', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#F9F8F3] w-full max-w-5xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl relative flex flex-col">
             
             <div className="modal-header" style={{ padding: '1.5rem 2rem', borderBottom: '1px solid rgba(0,0,0,0.05)', background: 'var(--surface-color)' }}>
               <div>
@@ -736,8 +736,9 @@ export function StockExpenses({ expenses, stock, onSaveTrip, onUpdateTrip, onDel
 
       {/* Type & Split Modal */}
       {splitModalColor && (
-        <div className="modal-overlay" style={{ zIndex: 1000 }}>
-          <div className="modal-content" style={{ width: '90%', maxWidth: '500px', padding: '2rem' }}>
+        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#F9F8F3] w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl relative">
+            <div className="p-6 md:p-8">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ margin: 0 }}>Split {splitModalColor.category} ({splitModalColor.color})</h3>
               <button className="icon-btn" onClick={() => { setSplitModalColor(null); setSplitQuantities({}); setNewTypeInput(''); }}><X size={20} /></button>
@@ -803,6 +804,7 @@ export function StockExpenses({ expenses, stock, onSaveTrip, onUpdateTrip, onDel
               >
                 Add to Basket
               </button>
+            </div>
             </div>
           </div>
         </div>

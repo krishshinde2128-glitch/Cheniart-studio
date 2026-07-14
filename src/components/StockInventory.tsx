@@ -438,9 +438,10 @@ export function StockInventory({ stock, onUpdateStock, onDeleteStock, onMergeDup
 
         {/* Smart-Log Modal */}
         {isDirectEntryOpen && (
-          <div className="modal-overlay" style={{ zIndex: 1000 }}>
-            <div className="modal-content" style={{ width: '90%', maxWidth: reviewMode ? '800px' : '500px', padding: '2rem' }}>
-              <h3 style={{ margin: '0 0 1.5rem 0' }}>{reviewMode ? 'Review Parsed Log' : 'Smart-Log Entry'}</h3>
+          <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className={`bg-[#F9F8F3] w-full ${reviewMode ? 'max-w-4xl' : 'max-w-lg'} max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl relative`}>
+              <div className="p-6 md:p-8">
+                <h3 style={{ margin: '0 0 1.5rem 0' }}>{reviewMode ? 'Review Parsed Log' : 'Smart-Log Entry'}</h3>
               
               {!reviewMode ? (
                 <>
@@ -549,6 +550,7 @@ export function StockInventory({ stock, onUpdateStock, onDeleteStock, onMergeDup
                   </div>
                 </>
               )}
+              </div>
             </div>
           </div>
         )}

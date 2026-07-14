@@ -22,6 +22,7 @@ export interface FlowerData {
   category?: 'Flowers' | 'Keychain' | 'Flower Pots';
   keychainQty?: number;
   cupsQty?: number;
+  hasFoamBall?: boolean;
   recipe?: ProductRecipe;
 }
 

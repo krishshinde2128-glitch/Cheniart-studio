@@ -22,15 +22,16 @@ export const calculateProductCost = (product: Partial<FlowerData>) => {
   const pc = Number(product.pipeCleanerQty || 0) * UNIT_PRICES.PIPE_CLEANER;
   const pollen = Number(product.pollenQty || 0) * UNIT_PRICES.POLLEN;
   const extra = Number(product.extraCosts || 0);
+  const foamBall = product.hasFoamBall ? 16.6 : 0;
 
   if (product.category === 'Keychain') {
-    return pc + pollen + extra + 2.5;
+    return pc + pollen + extra + foamBall + 2.5;
   }
   if (product.category === 'Flower Pots') {
-    return pc + extra + 12.4;
+    return pc + extra + foamBall + 12.4;
   }
   const glue = Number(product.glueQty || 0) * UNIT_PRICES.GLUE_SET;
-  return pc + pollen + extra + glue;
+  return pc + pollen + extra + foamBall + glue;
 };
 
 function App() {
@@ -134,7 +135,7 @@ function App() {
       for (const id of toDelete) {
         await deleteDoc(doc(db, 'stock', id));
       }
-      
+
       alert(`Merged successfully! Deleted ${toDelete.length} duplicate entries.`);
     } catch (e) {
       console.error("Error merging duplicates:", e);
@@ -146,19 +147,19 @@ function App() {
     try {
       if (!updatedOrder.id) throw new Error("Order ID is missing");
       const orderRef = doc(db, 'orders', updatedOrder.id);
-      
+
       // Clean data to prevent undefined fields from throwing Firestore errors
-      const cleanData = JSON.parse(JSON.stringify(updatedOrder, (_key, value) => 
+      const cleanData = JSON.parse(JSON.stringify(updatedOrder, (_key, value) =>
         value === undefined ? null : value
       ));
-      
+
       await updateDoc(orderRef, cleanData);
-      
+
       // Update local state if necessary (onSnapshot already handles it, but adding for completeness)
       setOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } as Order : o));
     } catch (error) {
       console.error("Error updating order in Firebase:", error);
-      throw error; 
+      throw error;
     }
   };
 
@@ -183,7 +184,7 @@ function App() {
         { date: '2026-03-25T10:00:00.000Z', tripTotal: 3234, items: [{ name: 'Restored Item', qty: 1, unitPrice: 3234, totalPrice: 3234 }] },
         { date: '2026-04-05T10:00:00.000Z', tripTotal: 1300, items: [{ name: 'Restored Item', qty: 1, unitPrice: 1300, totalPrice: 1300 }] }
       ];
-      
+
       for (const trip of emergencyData) {
         await addDoc(collection(db, 'expenses'), trip);
       }
@@ -224,7 +225,12 @@ function App() {
         isStockDeducted: (newFlower as any).isStockDeducted || false
       };
 
-      await addDoc(collection(db, 'flowers'), finalData);
+      // Clean data to prevent undefined fields from throwing Firestore errors
+      const cleanData = JSON.parse(JSON.stringify(finalData, (_key, value) =>
+        value === undefined ? null : value
+      ));
+
+      await addDoc(collection(db, 'flowers'), cleanData);
     } catch (e) {
       console.error("Error adding flower: ", e);
       throw e;
@@ -234,9 +240,9 @@ function App() {
   const handleUpdateFlowerDatabase = async (id: string, field: keyof FlowerData, value: number | string) => {
     const f = flowers.find(fl => fl.id === id);
     if (!f) return;
-    
+
     const updatedF = { ...f, [field]: field === 'name' || field === 'category' ? value : Number(value) || 0 };
-    
+
     // Compute raw cost immediately with new values
     const newCost = calculateProductCost(updatedF);
 
@@ -249,9 +255,9 @@ function App() {
       else updatedF.targetMargin = 0;
     } else if (field !== 'name') {
       // Derived ingredient edit -> push existing margin to new selling price
-      const tm = updatedF.targetMargin !== undefined ? updatedF.targetMargin : 
+      const tm = updatedF.targetMargin !== undefined ? updatedF.targetMargin :
         (updatedF.sellingPrice > 0 ? ((updatedF.sellingPrice - newCost) / updatedF.sellingPrice) * 100 : 0);
-      
+
       if (tm < 100) updatedF.sellingPrice = newCost / (1 - (tm / 100));
       updatedF.targetMargin = tm; // lock the implied margin
     }
@@ -294,9 +300,10 @@ function App() {
   const tableData = useMemo(() => {
     return flowers.map(flower => {
       const costPrice = calculateProductCost(flower);
-      
+
       const profit = flower.sellingPrice - costPrice;
-      const profitMargin = flower.targetMargin !== undefined ? flower.targetMargin : (flower.sellingPrice > 0 ? (profit / flower.sellingPrice) * 100 : 0);
+      const hasCustomMargin = flower.targetMargin !== undefined && flower.targetMargin !== null && flower.targetMargin !== "" && flower.targetMargin !== 0;
+      const profitMargin = hasCustomMargin ? Number(flower.targetMargin) : (flower.sellingPrice > 0 ? (profit / flower.sellingPrice) * 100 : 0);
 
       return {
         ...flower,
@@ -312,18 +319,18 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage flowers={flowers} orders={orders} expenses={expenses} />} />
         <Route path="/calculator" element={
-          <OrderCalculator 
-            flowers={flowers} 
+          <OrderCalculator
+            flowers={flowers}
             onSaveOrder={async (order: any) => {
               try {
                 console.log("Attempting to save order:", order);
                 const { id, ...orderData } = order;
-                
+
                 // Clean data: Firestore doesn't like undefined
-                const cleanData = JSON.parse(JSON.stringify(orderData, (_key, value) => 
+                const cleanData = JSON.parse(JSON.stringify(orderData, (_key, value) =>
                   value === undefined ? null : value
                 ));
-                
+
                 const docRef = await addDoc(collection(db, 'orders'), cleanData);
                 console.log("Order saved successfully with ID:", docRef.id);
                 return docRef;
@@ -332,12 +339,12 @@ function App() {
                 alert("Failed to save order. Please check console.");
                 throw e;
               }
-            }} 
+            }}
           />
         } />
         <Route path="/history" element={
-          <OrderHistory 
-            orders={orders} 
+          <OrderHistory
+            orders={orders}
             flowers={flowers}
             onUpdateOrder={updateOrder}
             onDeleteOrder={async (id) => {
@@ -345,7 +352,7 @@ function App() {
             }}
             onAddOrder={async (orderData: any) => {
               try {
-                const cleanData = JSON.parse(JSON.stringify(orderData, (_key, value) => 
+                const cleanData = JSON.parse(JSON.stringify(orderData, (_key, value) =>
                   value === undefined ? null : value
                 ));
                 const docRef = await addDoc(collection(db, 'orders'), cleanData);
@@ -355,24 +362,24 @@ function App() {
           />
         } />
         <Route path="/expenses" element={
-          <StockExpenses 
+          <StockExpenses
             stock={stock}
             expenses={expenses}
             onSaveTrip={async (tripData: Omit<Expense, 'id'>) => {
               try {
                 await addDoc(collection(db, 'expenses'), tripData);
-                
+
                 for (const item of tripData.items) {
                   if (item.name === 'Historical Bill Consolidation' || item.name === 'Spreadsheet Balance Correction') continue;
-                  
+
                   let category: StockItem['category'] = 'Accessories';
                   const lowName = item.name.toLowerCase();
-                  
+
                   if (lowName.includes('pipe cleaner')) category = 'Pipe Cleaners';
                   else if (lowName.includes('wrapping paper') || lowName.includes('wrapping sheet')) category = 'Wrapping Sheets';
                   else if (lowName.includes('mesh wrap') || lowName.includes('pearl wrap')) category = 'Mesh Wrap';
                   else if (lowName.includes('ribbon')) category = 'Ribbons';
-                  
+
                   await handleAddStock({
                     name: item.name,
                     category,
@@ -392,16 +399,16 @@ function App() {
           />
         } />
         <Route path="/stock" element={
-          <StockInventory 
-            stock={stock} 
-            onUpdateStock={handleUpdateStockCount} 
+          <StockInventory
+            stock={stock}
+            onUpdateStock={handleUpdateStockCount}
             onDeleteStock={handleDeleteStock}
             onMergeDuplicates={handleMergeDuplicatesStock}
             onAddStock={handleAddStock}
           />
         } />
         <Route path="/analytics" element={<MonthlyAnalytics orders={orders} expenses={expenses} />} />
-        
+
         {/* DATABASE PAGE */}
         <Route path="/inventory" element={
           <div className="dashboard-container">
@@ -410,26 +417,26 @@ function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div className="search-bar" style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--surface-color)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.05)', gap: '0.5rem' }}>
                   <Search size={16} style={{ color: 'var(--text-secondary)' }} />
-                  <input 
-                    type="text" 
-                    placeholder="Search by name..." 
+                  <input
+                    type="text"
+                    placeholder="Search by name..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.875rem', width: '200px' }}
                   />
                 </div>
-                <button 
-                  onClick={handleExportBackup} 
-                  className="ghost-btn" 
+                <button
+                  onClick={handleExportBackup}
+                  className="ghost-btn"
                   style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}
                   title="Download JSON Backup"
                 >
                   <Download size={16} /> Backup Database
                 </button>
                 {expenses.reduce((sum, exp) => sum + (Number(exp.tripTotal) || 0), 0) < 16800 && (
-                  <button 
-                    onClick={handleEmergencyRestore} 
-                    className="ghost-btn" 
+                  <button
+                    onClick={handleEmergencyRestore}
+                    className="ghost-btn"
                     style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', color: '#ef4444', border: '1px solid #ef4444' }}
                     title="Emergency Restore Expenses"
                   >
@@ -441,7 +448,7 @@ function App() {
             </header>
 
             <main className="dashboard-content">
-              
+
               {/* FLOWERS SECTION */}
               <section style={{ marginBottom: '3rem' }}>
                 <h2 style={{ fontSize: '1.5rem', color: 'var(--primary-dark)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -474,17 +481,17 @@ function App() {
                           .map((row) => (
                             <tr key={row.id}>
                               <td className="font-medium">
-                                <input 
-                                  type="text" value={row.name} 
-                                  onChange={(e) => handleUpdateFlowerDatabase(row.id, 'name', e.target.value)} 
-                                  className="saas-input" 
-                                  style={{ width: '130px', fontWeight: 500, height: '32px', padding: '0 0.5rem', backgroundColor: 'transparent', border: '1px solid transparent' }} 
+                                <input
+                                  type="text" value={row.name}
+                                  onChange={(e) => handleUpdateFlowerDatabase(row.id, 'name', e.target.value)}
+                                  className="saas-input"
+                                  style={{ width: '130px', fontWeight: 500, height: '32px', padding: '0 0.5rem', backgroundColor: 'transparent', border: '1px solid transparent' }}
                                   onFocus={(e) => e.target.style.backgroundColor = 'white'} onBlur={(e) => e.target.style.backgroundColor = 'transparent'}
                                 />
                               </td>
                               <td>
-                                <select 
-                                  value={row.category || 'Flowers'} 
+                                <select
+                                  value={row.category || 'Flowers'}
                                   onChange={(e) => handleUpdateFlowerDatabase(row.id, 'category', e.target.value)}
                                   className="saas-input"
                                   style={{ width: '100px', height: '32px', padding: '0 0.2rem', backgroundColor: 'transparent', border: '1px solid transparent', fontSize: '0.85rem' }}
@@ -510,7 +517,7 @@ function App() {
                               <td className="number-col editable-col">
                                 <div className="editable-wrapper" style={{ border: '2px solid rgba(122, 144, 120, 0.4)', borderRadius: '6px' }}>
                                   <span style={{ fontWeight: 700, color: 'var(--primary-dark)' }}>₹</span>
-                                  <input 
+                                  <input
                                     type="number" value={row.sellingPrice ? Number(row.sellingPrice).toFixed(0) : ''}
                                     onChange={(e) => handleUpdateFlowerDatabase(row.id, 'sellingPrice', e.target.value)}
                                     className="price-input" style={{ fontWeight: 700, color: 'var(--primary-dark)', fontSize: '1.05rem' }}
@@ -520,8 +527,8 @@ function App() {
                               <td className="number-col font-medium highlight-gray">₹{row.profit.toFixed(0)}</td>
                               <td className="number-col font-bold highlight-green">
                                 <div className="editable-wrapper" style={{ backgroundColor: 'rgba(122, 144, 120, 0.1)', border: '1px solid rgba(122, 144, 120, 0.2)', padding: '0.1rem 0.5rem', borderRadius: '4px', width: 'fit-content', marginLeft: 'auto' }}>
-                                  <input 
-                                    type="number" value={row.profitMargin ? Number(row.profitMargin).toFixed(1) : ''}
+                                  <input
+                                    type="number" value={row.profitMargin != null && row.profitMargin !== "" ? Number(row.profitMargin).toFixed(1) : ''}
                                     onChange={(e) => handleUpdateFlowerDatabase(row.id, 'targetMargin', e.target.value)}
                                     className="price-input" style={{ width: '50px', backgroundColor: 'transparent', color: 'var(--primary-color)' }}
                                   />
@@ -573,17 +580,17 @@ function App() {
                           .map((row) => (
                             <tr key={row.id}>
                               <td className="font-medium">
-                                <input 
-                                  type="text" value={row.name} 
-                                  onChange={(e) => handleUpdateFlowerDatabase(row.id, 'name', e.target.value)} 
-                                  className="saas-input" 
-                                  style={{ width: '130px', fontWeight: 500, height: '32px', padding: '0 0.5rem', backgroundColor: 'transparent', border: '1px solid transparent' }} 
+                                <input
+                                  type="text" value={row.name}
+                                  onChange={(e) => handleUpdateFlowerDatabase(row.id, 'name', e.target.value)}
+                                  className="saas-input"
+                                  style={{ width: '130px', fontWeight: 500, height: '32px', padding: '0 0.5rem', backgroundColor: 'transparent', border: '1px solid transparent' }}
                                   onFocus={(e) => e.target.style.backgroundColor = 'white'} onBlur={(e) => e.target.style.backgroundColor = 'transparent'}
                                 />
                               </td>
                               <td>
-                                <select 
-                                  value={row.category || 'Flowers'} 
+                                <select
+                                  value={row.category || 'Flowers'}
                                   onChange={(e) => handleUpdateFlowerDatabase(row.id, 'category', e.target.value)}
                                   className="saas-input"
                                   style={{ width: '100px', height: '32px', padding: '0 0.2rem', backgroundColor: 'transparent', border: '1px solid transparent', fontSize: '0.85rem' }}
@@ -611,7 +618,7 @@ function App() {
                               <td className="number-col editable-col">
                                 <div className="editable-wrapper" style={{ border: '2px solid rgba(122, 144, 120, 0.4)', borderRadius: '6px' }}>
                                   <span style={{ fontWeight: 700, color: 'var(--primary-dark)' }}>₹</span>
-                                  <input 
+                                  <input
                                     type="number" value={row.sellingPrice ? Number(row.sellingPrice).toFixed(0) : ''}
                                     onChange={(e) => handleUpdateFlowerDatabase(row.id, 'sellingPrice', e.target.value)}
                                     className="price-input" style={{ fontWeight: 700, color: 'var(--primary-dark)', fontSize: '1.05rem' }}
@@ -621,8 +628,8 @@ function App() {
                               <td className="number-col font-medium highlight-gray">₹{row.profit.toFixed(0)}</td>
                               <td className="number-col font-bold highlight-green">
                                 <div className="editable-wrapper" style={{ backgroundColor: 'rgba(122, 144, 120, 0.1)', border: '1px solid rgba(122, 144, 120, 0.2)', padding: '0.1rem 0.5rem', borderRadius: '4px', width: 'fit-content', marginLeft: 'auto' }}>
-                                  <input 
-                                    type="number" value={row.profitMargin ? Number(row.profitMargin).toFixed(1) : ''}
+                                  <input
+                                    type="number" value={row.profitMargin != null && row.profitMargin !== "" ? Number(row.profitMargin).toFixed(1) : ''}
                                     onChange={(e) => handleUpdateFlowerDatabase(row.id, 'targetMargin', e.target.value)}
                                     className="price-input" style={{ width: '50px', backgroundColor: 'transparent', color: 'var(--primary-color)' }}
                                   />
@@ -674,17 +681,17 @@ function App() {
                           .map((row) => (
                             <tr key={row.id}>
                               <td className="font-medium">
-                                <input 
-                                  type="text" value={row.name} 
-                                  onChange={(e) => handleUpdateFlowerDatabase(row.id, 'name', e.target.value)} 
-                                  className="saas-input" 
-                                  style={{ width: '130px', fontWeight: 500, height: '32px', padding: '0 0.5rem', backgroundColor: 'transparent', border: '1px solid transparent' }} 
+                                <input
+                                  type="text" value={row.name}
+                                  onChange={(e) => handleUpdateFlowerDatabase(row.id, 'name', e.target.value)}
+                                  className="saas-input"
+                                  style={{ width: '130px', fontWeight: 500, height: '32px', padding: '0 0.5rem', backgroundColor: 'transparent', border: '1px solid transparent' }}
                                   onFocus={(e) => e.target.style.backgroundColor = 'white'} onBlur={(e) => e.target.style.backgroundColor = 'transparent'}
                                 />
                               </td>
                               <td>
-                                <select 
-                                  value={row.category || 'Flowers'} 
+                                <select
+                                  value={row.category || 'Flowers'}
                                   onChange={(e) => handleUpdateFlowerDatabase(row.id, 'category', e.target.value)}
                                   className="saas-input"
                                   style={{ width: '100px', height: '32px', padding: '0 0.2rem', backgroundColor: 'transparent', border: '1px solid transparent', fontSize: '0.85rem' }}
@@ -712,7 +719,7 @@ function App() {
                               <td className="number-col editable-col">
                                 <div className="editable-wrapper" style={{ border: '2px solid rgba(122, 144, 120, 0.4)', borderRadius: '6px' }}>
                                   <span style={{ fontWeight: 700, color: 'var(--primary-dark)' }}>₹</span>
-                                  <input 
+                                  <input
                                     type="number" value={row.sellingPrice ? Number(row.sellingPrice).toFixed(0) : ''}
                                     onChange={(e) => handleUpdateFlowerDatabase(row.id, 'sellingPrice', e.target.value)}
                                     className="price-input" style={{ fontWeight: 700, color: 'var(--primary-dark)', fontSize: '1.05rem' }}
@@ -722,8 +729,8 @@ function App() {
                               <td className="number-col font-medium highlight-gray">₹{row.profit.toFixed(0)}</td>
                               <td className="number-col font-bold highlight-green">
                                 <div className="editable-wrapper" style={{ backgroundColor: 'rgba(122, 144, 120, 0.1)', border: '1px solid rgba(122, 144, 120, 0.2)', padding: '0.1rem 0.5rem', borderRadius: '4px', width: 'fit-content', marginLeft: 'auto' }}>
-                                  <input 
-                                    type="number" value={row.profitMargin ? Number(row.profitMargin).toFixed(1) : ''}
+                                  <input
+                                    type="number" value={row.profitMargin != null && row.profitMargin !== "" ? Number(row.profitMargin).toFixed(1) : ''}
                                     onChange={(e) => handleUpdateFlowerDatabase(row.id, 'targetMargin', e.target.value)}
                                     className="price-input" style={{ width: '50px', backgroundColor: 'transparent', color: 'var(--primary-color)' }}
                                   />
@@ -749,7 +756,7 @@ function App() {
               <Plus size={24} />
             </button>
 
-            <AddFlowerModal 
+            <AddFlowerModal
               isOpen={isModalOpen}
               onClose={() => setIsModalOpen(false)}
               onAdd={handleAddFlower}

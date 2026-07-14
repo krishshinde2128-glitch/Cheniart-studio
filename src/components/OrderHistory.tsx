@@ -533,21 +533,12 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
 
       {/* Edit Order Full Modal */}
       {editOrderModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
-          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000,
-          padding: '2rem'
-        }} onClick={() => setEditOrderModal(null)}>
+        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setEditOrderModal(null)}>
           <div 
+            className="bg-[#F9F8F3] w-full max-w-[1400px] max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl relative"
             onClick={e => e.stopPropagation()} 
-            style={{ 
-              backgroundColor: '#FAFAF9', /* SaaS warm background */
-              width: '100%', maxWidth: '1400px', height: '90vh', overflowY: 'auto',
-              borderRadius: 'var(--radius-lg)', padding: '2rem',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' 
-            }}
           >
+            <div className="p-6 md:p-8">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
               <div>
                 <h2 style={{ fontSize: '1.75rem', fontFamily: "'Playfair Display', serif", margin: '0 0 0.5rem 0', color: 'var(--primary-color)' }}>Edit Order Details</h2>
@@ -574,27 +565,19 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                 }
               }} 
             />
+            </div>
           </div>
         </div>
       )}
 
       {/* Repeat Order Modal */}
       {repeatOrderPrompt && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
-          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000,
-          padding: '2rem'
-        }} onClick={() => setRepeatOrderPrompt(null)}>
+        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setRepeatOrderPrompt(null)}>
           <div 
+            className="bg-[#F9F8F3] w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl relative"
             onClick={e => e.stopPropagation()} 
-            style={{ 
-              backgroundColor: '#FAFAF9',
-              width: '100%', maxWidth: '400px',
-              borderRadius: 'var(--radius-lg)', padding: '2rem',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' 
-            }}
           >
+            <div className="p-6 md:p-8">
             <h2 style={{ fontSize: '1.5rem', fontFamily: "'Playfair Display', serif", margin: '0 0 1.5rem 0', color: 'var(--primary-color)' }}>Repeat Order</h2>
             
             <div style={{ marginBottom: '1rem' }}>
@@ -670,6 +653,7 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                 Duplicate Order
               </button>
             </div>
+            </div>
           </div>
         </div>
       )}
@@ -705,21 +689,12 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
 
       {/* Quick Add Modal */}
       {isQuickAddModalOpen && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
-          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000,
-          padding: '2rem'
-        }} onClick={() => setIsQuickAddModalOpen(false)}>
+        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsQuickAddModalOpen(false)}>
           <div 
+            className="bg-[#F9F8F3] w-full max-w-[1400px] max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl relative"
             onClick={e => e.stopPropagation()} 
-            style={{ 
-              backgroundColor: '#FAFAF9',
-              width: '100%', maxWidth: '1400px', height: '90vh', overflowY: 'auto',
-              borderRadius: 'var(--radius-lg)', padding: '2rem',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' 
-            }}
           >
+            <div className="p-6 md:p-8">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
               <div>
                 <h2 style={{ fontSize: '1.75rem', fontFamily: "'Playfair Display', serif", margin: '0 0 0.5rem 0', color: 'var(--primary-color)' }}>Quick Add Order</h2>
@@ -740,6 +715,7 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                 setIsQuickAddModalOpen(false);
               }} 
             />
+            </div>
           </div>
         </div>
       )}
