@@ -51,6 +51,7 @@ export interface Order {
   id: string;
   date: string; // ISO date string
   customerName?: string;
+  orderLocation?: string;
   items: OrderItem[];
   additionalFees?: AdditionalFee[];
   // Legacy fields for backward compatibility

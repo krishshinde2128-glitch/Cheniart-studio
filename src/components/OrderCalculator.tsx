@@ -118,6 +118,21 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
     let fees = initialOrder?.additionalFees || [];
     fees = fees.filter(f => !f.id.startsWith('bouquet-fee-'));
 
+    // Populate legacy or top-level shipping fee
+    if (initialOrder?.shippingCost && initialOrder.shippingCost > 0) {
+      const typeStr = initialOrder.shippingType || 'Custom';
+      const shippingName = typeStr !== 'None' ? `Shipping/Delivery (${typeStr})` : 'Shipping/Delivery';
+      if (!fees.some(f => f.type === 'Shipping')) {
+        fees.push({
+          id: `legacy-shipping-${Date.now()}`,
+          name: shippingName,
+          type: 'Shipping',
+          amount: initialOrder.shippingCost,
+          isIncludedInCost: true
+        });
+      }
+    }
+
     const legacyFees = [initialOrder?.bouquetFee, initialOrder?.deliveryFee, initialOrder?.extraItemPrice]
       .filter((v): v is number => v !== undefined && v > 0)
       .map((amount, i) => ({ id: `legacy-${i}`, name: 'Legacy Fee', type: 'Custom' as const, amount, isIncludedInCost: true }));
@@ -125,10 +140,11 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
     return [...fees, ...legacyFees];
   });
   
-  const [feeType, setFeeType] = useState<'Bouquet Arrangement' | 'Packaging' | 'Custom'>('Packaging');
+  const [feeType, setFeeType] = useState<'Bouquet Arrangement' | 'Packaging' | 'Shipping' | 'Custom'>('Packaging');
   const [feeAmount, setFeeAmount] = useState<number | ''>('');
   const [customFeeName, setCustomFeeName] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>(initialOrder?.customerName || '');
+  const [orderLocation, setOrderLocation] = useState<string>(initialOrder?.orderLocation || '');
   const [orderDate, setOrderDate] = useState<string>(
     initialOrder?.date ? initialOrder.date.split('T')[0] : new Date().toISOString().split('T')[0] 
   );
@@ -137,9 +153,14 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
     initialOrder?.scheduledDeliveryDate ? initialOrder.scheduledDeliveryDate.split('T')[0] : new Date().toISOString().split('T')[0]
   );
 
-  // Shipping State
-  const [shippingType, setShippingType] = useState<Order['shippingType']>(initialOrder?.shippingType || 'None');
-  const [shippingCost, setShippingCost] = useState<number>(initialOrder?.shippingCost || 0);
+  // Computed Shipping values
+  const shippingCost = useMemo(() => {
+    return additionalFees.filter(f => f.type === 'Shipping').reduce((sum, f) => sum + f.amount, 0);
+  }, [additionalFees]);
+
+  const shippingType = useMemo<Order['shippingType']>(() => {
+    return additionalFees.some(f => f.type === 'Shipping') ? 'Across India' : 'None';
+  }, [additionalFees]);
 
   // Manual Override State
   const [isManualOverride, setIsManualOverride] = useState(!!initialOrder);
@@ -180,7 +201,10 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
   const handleAddFee = () => {
     if (feeAmount === '' || feeAmount <= 0) return;
     setIsEdited(true);
-    const name = feeType === 'Custom' ? (customFeeName || 'Custom Fee') : feeType;
+    let name = feeType === 'Custom' ? (customFeeName || 'Custom Fee') : feeType;
+    if (feeType === 'Shipping') {
+      name = 'Shipping/Delivery';
+    }
     const newFee: AdditionalFee = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       name,
@@ -225,9 +249,9 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
     const additionalFeesTotal = additionalFees.reduce((sum, f) => sum + f.amount, 0);
     const totalArrangementFees = Object.values(sectionInputs).reduce((sum, state) => sum + (state.arrangementFee || 0), 0);
     
-    // New logic: Total Base Cost is Bouquet Costs + Additional Fees + Shipping
-    const finalTotalCost = sumOfBouquetCosts + additionalFeesTotal + shippingCost; 
-    const calculatedTotalPrice = itemsTotalPrice + additionalFeesTotal + totalArrangementFees + shippingCost;
+    // New logic: Total Base Cost is Bouquet Costs + Additional Fees (which includes Shipping)
+    const finalTotalCost = sumOfBouquetCosts + additionalFeesTotal; 
+    const calculatedTotalPrice = itemsTotalPrice + additionalFeesTotal + totalArrangementFees;
     
     // Manual Quote Override applied here
     const finalTotalPrice = isManualOverride && manualQuote !== '' ? parseFloat(manualQuote) || 0 : calculatedTotalPrice;
@@ -265,6 +289,7 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
       scheduledDeliveryDate: new Date(scheduledDeliveryDate).toISOString(),
       isDelivered: initialOrder ? initialOrder.isDelivered : false,
       customerName: customerName.trim() || '',
+      orderLocation: orderLocation.trim() || '',
       items,
       additionalFees: finalFees,
       shippingType,
@@ -291,8 +316,7 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
         setItems([]);
         setAdditionalFees([]);
         setCustomerName('');
-        setShippingType('None');
-        setShippingCost(0);
+        setOrderLocation('');
         setIsManualOverride(false);
         setManualQuote('');
         setSectionInputs({});
@@ -529,53 +553,22 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
           });
         })()}
 
-        {/* Shipping Section */}
-        <section className="glass-card calc-section table-wrapper">
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', fontFamily: "'Playfair Display', serif" }}>🚚 Shipping/Delivery</h2>
-          
-          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', margin: 0 }}>
-              <input 
-                type="radio" 
-                name="shipping" 
-                checked={shippingType === 'None'} 
-                onChange={() => {
-                  setIsEdited(true);
-                  setShippingType('None');
-                  setShippingCost(0);
-                }}
-                style={{ accentColor: '#7A9078', width: '18px', height: '18px', cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: '0.95rem', fontWeight: 500 }}>No Shipping (₹0)</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', margin: 0 }}>
-              <input 
-                type="radio" 
-                name="shipping" 
-                checked={shippingType === 'Maharashtra & Gujarat'} 
-                onChange={() => {
-                  setIsEdited(true);
-                  setShippingType('Maharashtra & Gujarat');
-                  setShippingCost(50);
-                }}
-                style={{ accentColor: '#7A9078', width: '18px', height: '18px', cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: '0.95rem', fontWeight: 500 }}>Maharashtra & Gujarat (₹50)</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', margin: 0 }}>
-              <input 
-                type="radio" 
-                name="shipping" 
-                checked={shippingType === 'Across India'} 
-                onChange={() => {
-                  setIsEdited(true);
-                  setShippingType('Across India');
-                  setShippingCost(70);
-                }}
-                style={{ accentColor: '#7A9078', width: '18px', height: '18px', cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: '0.95rem', fontWeight: 500 }}>Across India (₹70)</span>
-            </label>
+        {/* Order Location Section */}
+        <section className="glass-card calc-section">
+          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', fontFamily: "'Playfair Display', serif" }}>📍 Order Location</h2>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Delivery Location / Address</label>
+            <input 
+              type="text" 
+              placeholder="Enter delivery location or address..."
+              value={orderLocation}
+              onChange={(e) => {
+                setIsEdited(true);
+                setOrderLocation(e.target.value);
+              }}
+              className="saas-input"
+              style={{ width: '100%', height: '40px' }}
+            />
           </div>
         </section>
 
@@ -593,6 +586,7 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
                 >
                   <option value="Packaging">Packaging</option>
                   <option value="Bouquet Arrangement">Bouquet Arrangement</option>
+                  <option value="Shipping">Shipping/Delivery</option>
                   <option value="Custom">Custom</option>
                 </select>
               </div>
@@ -697,7 +691,7 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
 
                 {shippingCost > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.9, fontSize: '1.0625rem' }}>
-                    <span>Shipping ({shippingType}):</span>
+                    <span>Shipping/Delivery:</span>
                     <span style={{ fontWeight: 500 }}>+₹{shippingCost.toFixed(0)}</span>
                   </div>
                 )}

@@ -501,6 +501,12 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                               <div style={{ backgroundColor: 'var(--primary-color)', color: 'white', padding: '1.5rem', borderRadius: '8px', height: 'fit-content' }}>
                                 <h4 style={{ fontSize: '1.125rem', margin: '0 0 1.25rem 0', fontFamily: "'Playfair Display', serif" }}>Totals Summary</h4>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                  {order.orderLocation && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.875rem', opacity: 0.9, borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: '0.5rem', marginBottom: '0.25rem' }}>
+                                      <span style={{ fontSize: '0.75rem', opacity: 0.7, textTransform: 'uppercase' }}>Delivery Location:</span>
+                                      <span style={{ fontWeight: 500 }}>📍 {order.orderLocation}</span>
+                                    </div>
+                                  )}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', opacity: 0.9 }}>
                                     <span>Base Costs:</span>
                                     <span>₹{order.totalCost.toFixed(0)}</span>
@@ -629,6 +635,7 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                   const duplicatedOrder: Omit<Order, 'id'> = {
                     date: new Date().toISOString(),
                     customerName: repeatCustomerName,
+                    orderLocation: repeatOrderPrompt.orderLocation || '',
                     items: repeatOrderPrompt.items,
                     additionalFees: repeatOrderPrompt.additionalFees,
                     shippingType: repeatOrderPrompt.shippingType,
