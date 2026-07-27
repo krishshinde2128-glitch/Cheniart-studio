@@ -387,6 +387,20 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
                   style={{ height: '40px' }}
                 />
               </div>
+              <div style={{ width: '220px' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Order Location</label>
+                <input 
+                  type="text" 
+                  placeholder="Location (Optional)"
+                  value={orderLocation}
+                  onChange={(e) => {
+                    setIsEdited(true);
+                    setOrderLocation(e.target.value);
+                  }}
+                  className="saas-input"
+                  style={{ height: '40px' }}
+                />
+              </div>
               <div style={{ width: '120px' }}>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary-color)', marginBottom: '0.25rem' }}>Bouquet Count</label>
                 <input 
@@ -553,24 +567,6 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
           });
         })()}
 
-        {/* Order Location Section */}
-        <section className="glass-card calc-section">
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', fontFamily: "'Playfair Display', serif" }}>📍 Order Location</h2>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Delivery Location / Address</label>
-            <input 
-              type="text" 
-              placeholder="Enter delivery location or address..."
-              value={orderLocation}
-              onChange={(e) => {
-                setIsEdited(true);
-                setOrderLocation(e.target.value);
-              }}
-              className="saas-input"
-              style={{ width: '100%', height: '40px' }}
-            />
-          </div>
-        </section>
 
           {/* Add Fee Section */}
           <section className="glass-card">

@@ -222,8 +222,15 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                           />
                         ) : (
                           <div className="tooltip-container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            {order.customerName || 'N/A'}
-                          {expandedOrderId === order.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span>{order.customerName || 'N/A'}</span>
+                              {order.orderLocation && (
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'none', marginTop: '2px', fontWeight: 'normal' }}>
+                                  📍 {order.orderLocation}
+                                </span>
+                              )}
+                            </div>
+                            {expandedOrderId === order.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                           
                           {/* Hover Tooltip */}
                           <div className="hover-tooltip" style={{
