@@ -281,12 +281,32 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                           </div>
                         )}
                       </td>
-                      <td onClick={(e) => { e.stopPropagation(); setEditOrderModal(order); }} style={{ cursor: 'pointer' }} title="Click to edit full Order Details">
+                      <td onClick={(e) => { e.stopPropagation(); setEditOrderModal(order); }} style={{ cursor: 'pointer', maxWidth: '360px' }} title="Click to edit full Order Details">
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>
-                            {order.items.length > 0 
-                              ? order.items.map(i => i.quantity > 1 ? `${i.quantity} ${i.flowerName}` : i.flowerName).join(', ') 
-                              : '0 flowers'}
+                          <span style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                            {order.items.length > 0 ? (
+                              <>
+                                {order.items.slice(0, 5).map(i => i.quantity > 1 ? `${i.quantity} ${i.flowerName}` : i.flowerName).join(', ')}
+                                {order.items.length > 5 && (
+                                  <span 
+                                    style={{ 
+                                      display: 'inline-block',
+                                      marginLeft: '0.35rem', 
+                                      backgroundColor: 'rgba(122, 144, 120, 0.15)', 
+                                      color: 'var(--primary-dark)', 
+                                      padding: '0.1rem 0.45rem', 
+                                      borderRadius: '9999px',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    +{order.items.length - 5} more
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              '0 flowers'
+                            )}
                           </span>
                         </div>
                       </td>
