@@ -26,6 +26,24 @@ export interface FlowerData {
   recipe?: ProductRecipe;
 }
 
+export const isFlowerPot = (category?: string | null): boolean => {
+  if (!category) return false;
+  const c = category.toLowerCase().trim();
+  return c === 'flower pots' || c === 'pots' || c === 'flower pot' || c === 'pot';
+};
+
+export const isKeychain = (category?: string | null): boolean => {
+  if (!category) return false;
+  const c = category.toLowerCase().trim();
+  return c === 'keychain' || c === 'keychains';
+};
+
+export const normalizeCategory = (category?: string | null): 'Flowers' | 'Keychain' | 'Flower Pots' => {
+  if (isFlowerPot(category)) return 'Flower Pots';
+  if (isKeychain(category)) return 'Keychain';
+  return 'Flowers';
+};
+
 export type PaymentStatus = 'Pending' | 'Paid' | 'Half Payment';
 export type PaymentMode = 'Cash' | 'UPI' | 'Bank Transfer';
 

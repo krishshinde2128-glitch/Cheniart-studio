@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Plus, Download, Trash2, Search } from 'lucide-react';
 import { UNIT_PRICES } from './constants';
-import type { FlowerData, Order, Expense, StockItem } from './types';
+import { isFlowerPot, isKeychain, normalizeCategory, type FlowerData, type Order, type Expense, type StockItem } from './types';
 import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { AddFlowerModal } from './components/AddFlowerModal';
@@ -24,11 +24,12 @@ export const calculateProductCost = (product: Partial<FlowerData>) => {
   const extra = Number(product.extraCosts || 0);
   const foamBall = product.hasFoamBall ? 16.6 : 0;
 
-  if (product.category === 'Keychain') {
+  if (isKeychain(product.category)) {
     return pc + pollen + extra + foamBall + 2.5;
   }
-  if (product.category === 'Flower Pots') {
-    return pc + extra + foamBall + 12.4;
+  if (isFlowerPot(product.category)) {
+    const cups = (product.cupsQty && Number(product.cupsQty) > 0) ? Number(product.cupsQty) : 1;
+    return pc + extra + foamBall + (12.4 * cups);
   }
   const glue = Number(product.glueQty || 0) * UNIT_PRICES.GLUE_SET;
   return pc + pollen + extra + foamBall + glue;
@@ -47,7 +48,14 @@ function App() {
   useEffect(() => {
     const qFlowers = query(collection(db, 'flowers'), orderBy('sellingPrice', 'asc'));
     const unsubFlowers = onSnapshot(qFlowers, (snapshot) => {
-      const dbFlowers = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as FlowerData));
+      const dbFlowers = snapshot.docs.map(d => {
+        const data = d.data();
+        const normCat = normalizeCategory(data.category);
+        if (data.category && data.category !== normCat) {
+          updateDoc(doc(db, 'flowers', d.id), { category: normCat }).catch(e => console.error("Error auto-migrating category:", e));
+        }
+        return { ...data, category: normCat, id: d.id } as FlowerData;
+      });
       setFlowers(dbFlowers);
     }, (error) => console.error(error));
 
@@ -214,6 +222,7 @@ function App() {
       const { id, ...productDataWithoutId } = newFlower;
       const finalData = {
         ...productDataWithoutId,
+        category: normalizeCategory(newFlower.category),
         pipeCleanerQty: pQty,
         pollenQty: polQty,
         glueQty: gQty,
@@ -242,6 +251,9 @@ function App() {
     if (!f) return;
 
     const updatedF = { ...f, [field]: field === 'name' || field === 'category' ? value : Number(value) || 0 };
+    if (field === 'category') {
+      updatedF.category = normalizeCategory(value as string);
+    }
 
     // Compute raw cost immediately with new values
     const newCost = calculateProductCost(updatedF);
@@ -473,11 +485,11 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {tableData.filter(r => (!r.category || r.category === 'Flowers') && r.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                      {tableData.filter(r => (!r.category || (!isKeychain(r.category) && !isFlowerPot(r.category))) && r.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
                         <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No items yet</td></tr>
                       ) : (
                         tableData
-                          .filter(r => (!r.category || r.category === 'Flowers') && r.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                          .filter(r => (!r.category || (!isKeychain(r.category) && !isFlowerPot(r.category))) && r.name.toLowerCase().includes(searchQuery.toLowerCase()))
                           .map((row) => (
                             <tr key={row.id}>
                               <td className="font-medium">
@@ -491,7 +503,7 @@ function App() {
                               </td>
                               <td>
                                 <select
-                                  value={row.category || 'Flowers'}
+                                  value={normalizeCategory(row.category)}
                                   onChange={(e) => handleUpdateFlowerDatabase(row.id, 'category', e.target.value)}
                                   className="saas-input"
                                   style={{ width: '100px', height: '32px', padding: '0 0.2rem', backgroundColor: 'transparent', border: '1px solid transparent', fontSize: '0.85rem' }}
@@ -572,11 +584,11 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {tableData.filter(r => (r.category === 'Keychain' || (r.category as string) === 'Keychains') && r.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                      {tableData.filter(r => isKeychain(r.category) && r.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
                         <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No items yet</td></tr>
                       ) : (
                         tableData
-                          .filter(r => (r.category === 'Keychain' || (r.category as string) === 'Keychains') && r.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                          .filter(r => isKeychain(r.category) && r.name.toLowerCase().includes(searchQuery.toLowerCase()))
                           .map((row) => (
                             <tr key={row.id}>
                               <td className="font-medium">
@@ -590,7 +602,7 @@ function App() {
                               </td>
                               <td>
                                 <select
-                                  value={row.category || 'Flowers'}
+                                  value={normalizeCategory(row.category)}
                                   onChange={(e) => handleUpdateFlowerDatabase(row.id, 'category', e.target.value)}
                                   className="saas-input"
                                   style={{ width: '100px', height: '32px', padding: '0 0.2rem', backgroundColor: 'transparent', border: '1px solid transparent', fontSize: '0.85rem' }}
@@ -673,11 +685,11 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {tableData.filter(r => (r.category === 'Flower Pots' || (r.category as string) === 'Pots') && r.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                      {tableData.filter(r => isFlowerPot(r.category) && r.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
                         <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No items yet</td></tr>
                       ) : (
                         tableData
-                          .filter(r => (r.category === 'Flower Pots' || (r.category as string) === 'Pots') && r.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                          .filter(r => isFlowerPot(r.category) && r.name.toLowerCase().includes(searchQuery.toLowerCase()))
                           .map((row) => (
                             <tr key={row.id}>
                               <td className="font-medium">
@@ -691,7 +703,7 @@ function App() {
                               </td>
                               <td>
                                 <select
-                                  value={row.category || 'Flowers'}
+                                  value={normalizeCategory(row.category)}
                                   onChange={(e) => handleUpdateFlowerDatabase(row.id, 'category', e.target.value)}
                                   className="saas-input"
                                   style={{ width: '100px', height: '32px', padding: '0 0.2rem', backgroundColor: 'transparent', border: '1px solid transparent', fontSize: '0.85rem' }}

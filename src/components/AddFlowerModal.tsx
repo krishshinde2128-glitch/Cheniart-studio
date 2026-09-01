@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import type { FlowerData } from '../types';
+import { isFlowerPot, isKeychain, type FlowerData } from '../types';
 import { showToast } from './Toast';
 
 interface AddFlowerModalProps {
@@ -36,9 +36,9 @@ export function AddFlowerModal({ isOpen, onClose, onAdd }: AddFlowerModalProps) 
   const [successMessage, setSuccessMessage] = useState('');
 
   const liveCost = (Number(formData.pipeCleanerQty) * 0.8) + 
-                   (formData.category !== 'Flower Pots' ? Number(formData.pollenQty) * 0.2815 : 0) +
-                   (formData.category === 'Keychain' ? 2.5 : 0) +
-                   (formData.category === 'Flower Pots' ? 12.4 : 0) +
+                   (!isFlowerPot(formData.category) ? Number(formData.pollenQty) * 0.2815 : 0) +
+                   (isKeychain(formData.category) ? 2.5 : 0) +
+                   (isFlowerPot(formData.category) ? 12.4 : 0) +
                    (Number(formData.extraCosts) || 0) +
                    (formData.hasFoamBall ? 16.6 : 0);
 
@@ -145,22 +145,20 @@ export function AddFlowerModal({ isOpen, onClose, onAdd }: AddFlowerModalProps) 
               <input required type="number" min="0" id="pipeCleanerQty" name="pipeCleanerQty" value={formData.pipeCleanerQty} onChange={handleChange} />
             </div>
             
-            {formData.category !== 'Flower Pots' && (
+            {!isFlowerPot(formData.category) && (
               <div className="form-group">
                 <label htmlFor="pollenQty">Pollen Qty</label>
                 <input required type="number" min="0" step="1" id="pollenQty" name="pollenQty" value={formData.pollenQty} onChange={handleChange} />
               </div>
             )}
 
-            {formData.category === 'Keychain' && (
+            {isKeychain(formData.category) && (
               <div className="form-group full-width" style={{ marginTop: '0.25rem', padding: '0.75rem', backgroundColor: 'rgba(0, 0, 0, 0.02)', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.05)' }}>
                 <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Keychain Accessory Cost: ₹2.50</span>
               </div>
             )}
 
-
-
-            {formData.category === 'Flower Pots' && (
+            {isFlowerPot(formData.category) && (
               <div className="form-group full-width" style={{ marginTop: '0.25rem', padding: '0.75rem', backgroundColor: 'rgba(0, 0, 0, 0.02)', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.05)' }}>
                 <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Cup / Base Cost: ₹12.40</span>
               </div>

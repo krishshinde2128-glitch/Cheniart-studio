@@ -1,7 +1,7 @@
 
 import { useState, useMemo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import type { FlowerData, Order, OrderItem, AdditionalFee } from '../types';
+import { isFlowerPot, isKeychain, type FlowerData, type Order, type OrderItem, type AdditionalFee } from '../types';
 import { showToast } from './Toast';
 import { Navbar } from './Navbar';
 
@@ -19,15 +19,29 @@ const getFlowerCost = (f: FlowerData) => {
   const extra = Number(f.extraCosts || 0);
   const foamBall = f.hasFoamBall ? 16.6 : 0;
 
-  if (f.category === 'Keychain') {
+  if (isKeychain(f.category)) {
     return pc + pollen + extra + foamBall + 2.5;
   }
-  if (f.category === 'Flower Pots') {
-    return pc + extra + foamBall + 12.4;
+  if (isFlowerPot(f.category)) {
+    const cups = (f.cupsQty && Number(f.cupsQty) > 0) ? Number(f.cupsQty) : 1;
+    return pc + extra + foamBall + (12.4 * cups);
   }
   const glue = Number(f.glueQty || 0) * 3.5;
   return pc + pollen + extra + foamBall + glue;
 };
+
+const BAG_OPTIONS = [
+  { name: 'Big Paper Bag', price: 13.75 },
+  { name: 'Medium Paper Bag', price: 9.96 },
+  { name: 'Small Paper Bag', price: 9.96 },
+];
+
+const PLASTIC_OPTIONS = [
+  { name: 'Big Plastic', price: 2.4 },
+  { name: 'Medium Plastic', price: 1.4 },
+  { name: 'Small Plastic', price: 0.6 },
+];
+
 
 export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }: OrderCalculatorProps) {
 
@@ -427,9 +441,9 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
             const input = getSectionInput(sectionKey);
 
             const categoryFlowers = flowers.filter(f => {
-              if (input.category === '🌸 Flowers') return !f.category || f.category === 'Flowers';
-              if (input.category === '🔑 Keychains') return f.category === 'Keychain' || (f.category as string) === 'Keychains';
-              if (input.category === '🪴 Flower Pots') return f.category === 'Flower Pots' || (f.category as string) === 'Pots';
+              if (input.category === '🌸 Flowers') return !f.category || (!isKeychain(f.category) && !isFlowerPot(f.category));
+              if (input.category === '🔑 Keychains') return isKeychain(f.category);
+              if (input.category === '🪴 Flower Pots') return isFlowerPot(f.category);
               return true;
             }).filter(f => input.searchQuery === '' || f.name.toLowerCase().includes(input.searchQuery.toLowerCase()));
 
@@ -567,6 +581,63 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
           });
         })()}
 
+
+          {/* Quick Add Packaging */}
+          <section className="glass-card" style={{ marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1.5rem', fontFamily: "'Playfair Display', serif" }}>Quick Add Packaging</h2>
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Paper Bags</label>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                {BAG_OPTIONS.map(bag => (
+                  <button 
+                    key={bag.name}
+                    onClick={() => {
+                      setIsEdited(true);
+                      setAdditionalFees([...additionalFees, {
+                        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                        name: bag.name,
+                        type: 'Packaging',
+                        amount: bag.price,
+                        isIncludedInCost: true
+                      }]);
+                    }}
+                    className="flat-btn"
+                    style={{ padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', backgroundColor: '#FBF8F2', border: '1px solid rgba(122, 144, 120, 0.3)' }}
+                  >
+                    <span style={{ fontWeight: 500 }}>{bag.name}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>+₹{bag.price.toFixed(2)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Plastic Covering</label>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                {PLASTIC_OPTIONS.map(plastic => (
+                  <button 
+                    key={plastic.name}
+                    onClick={() => {
+                      setIsEdited(true);
+                      setAdditionalFees([...additionalFees, {
+                        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                        name: plastic.name,
+                        type: 'Packaging',
+                        amount: plastic.price,
+                        isIncludedInCost: true
+                      }]);
+                    }}
+                    className="flat-btn"
+                    style={{ padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', backgroundColor: '#FBF8F2', border: '1px solid rgba(122, 144, 120, 0.3)' }}
+                  >
+                    <span style={{ fontWeight: 500 }}>{plastic.name}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>+₹{plastic.price.toFixed(2)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
 
           {/* Add Fee Section */}
           <section className="glass-card">

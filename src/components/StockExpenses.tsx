@@ -258,15 +258,15 @@ export function StockExpenses({ expenses, stock, onSaveTrip, onUpdateTrip, onDel
       const numValue = value === '' ? 0 : Number(value);
       
       // Update the specific field
-      if (field === 'qty') item.qty = numValue;
+      if (field === 'qty') item.qty = Math.round(numValue);
       else if (field === 'unitPrice') item.unitPrice = numValue;
-      else if (field === 'subtotal') item.subtotal = numValue;
+      else if (field === 'subtotal') item.subtotal = Math.round(numValue);
 
       // Two-way calculation logic
       if (field === 'subtotal') {
         item.unitPrice = item.qty > 0 ? Number((item.subtotal / item.qty).toFixed(2)) : 0;
       } else {
-        item.subtotal = Number((item.qty * item.unitPrice).toFixed(2));
+        item.subtotal = Math.round(item.qty * item.unitPrice);
       }
       
       newBasket[index] = item;
@@ -303,9 +303,9 @@ export function StockExpenses({ expenses, stock, onSaveTrip, onUpdateTrip, onDel
     
     const finalItems = basket.map(item => ({
       ...item,
-      qty: Number(item.qty),
+      qty: Math.round(Number(item.qty)),
       unitPrice: Number(item.unitPrice),
-      subtotal: Number(item.qty) * Number(item.unitPrice)
+      subtotal: Math.round(Number(item.qty) * Number(item.unitPrice))
     }));
     
     const finalTotal = finalItems.reduce((sum, item) => sum + item.subtotal, 0);
@@ -383,7 +383,7 @@ export function StockExpenses({ expenses, stock, onSaveTrip, onUpdateTrip, onDel
                       </td>
                       <td className="font-medium">{new Date(trip.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                       <td className="number-col">{trip.items?.length || 0} items</td>
-                      <td className="number-col font-bold" style={{ color: 'var(--primary-dark)' }}>₹{Number(trip.tripTotal).toLocaleString('en-IN')}</td>
+                      <td className="number-col font-bold" style={{ color: 'var(--primary-dark)' }}>₹{Math.round(Number(trip.tripTotal)).toLocaleString('en-IN')}</td>
                       <td style={{ textAlign: 'center', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                         <button 
                           onClick={(e) => handleEditTrip(trip, e)} 
@@ -404,8 +404,8 @@ export function StockExpenses({ expenses, stock, onSaveTrip, onUpdateTrip, onDel
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             {trip.items?.map(item => (
                               <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px dashed rgba(122,144,120,0.2)' }}>
-                                <span style={{ fontWeight: 500 }}>{item.qty}x {item.name}</span>
-                                <span style={{ color: 'var(--text-secondary)' }}>@ ₹{item.unitPrice} = <strong style={{ color: 'var(--text-primary)' }}>₹{item.subtotal}</strong></span>
+                                <span style={{ fontWeight: 500 }}>{Math.round(item.qty)}x {item.name}</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>@ ₹{item.unitPrice} = <strong style={{ color: 'var(--text-primary)' }}>₹{Math.round(item.subtotal)}</strong></span>
                               </div>
                             ))}
                           </div>
@@ -660,7 +660,7 @@ export function StockExpenses({ expenses, stock, onSaveTrip, onUpdateTrip, onDel
               </div>
               
               {/* Right Side: Live Basket */}
-              <div style={{ width: '400px', display: 'flex', flexDirection: 'column', background: 'white' }}>
+              <div style={{ width: '480px', display: 'flex', flexDirection: 'column', background: 'white' }}>
                 <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <Package size={20} color="var(--primary-color)" />
                   <h3 style={{ margin: 0 }}>Current Basket</h3>
@@ -683,27 +683,27 @@ export function StockExpenses({ expenses, stock, onSaveTrip, onUpdateTrip, onDel
                           
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.75rem', paddingRight: '1rem' }}>{item.name}</div>
                           
-                          <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+                          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', width: '80px' }}>
-                              <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Qty</label>
-                              <input type="number" min="1" step="0.1" value={item.qty === 0 ? '' : item.qty} onChange={e => updateBasketItem(index, 'qty', e.target.value)} className="saas-input" style={{ textAlign: 'center' }} />
+                              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Qty</label>
+                              <input type="number" min="1" step="1" value={item.qty === 0 ? '' : item.qty} onChange={e => updateBasketItem(index, 'qty', e.target.value)} className="saas-input" style={{ textAlign: 'center', fontSize: '1.125rem', padding: '0.75rem 0.5rem' }} />
                             </div>
                             
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
-                              <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Price (₹)</label>
-                              <input type="number" min="0" step="0.1" value={item.unitPrice === 0 ? '' : item.unitPrice} onChange={e => updateBasketItem(index, 'unitPrice', e.target.value)} className="saas-input" />
+                              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Price (₹)</label>
+                              <input type="number" min="0" step="0.01" value={item.unitPrice === 0 ? '' : item.unitPrice} onChange={e => updateBasketItem(index, 'unitPrice', e.target.value)} className="saas-input" style={{ fontSize: '1.125rem', padding: '0.75rem 0.5rem' }} />
                             </div>
                             
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '80px' }}>
-                              <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Subtotal (₹)</label>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '100px' }}>
+                              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Subtotal (₹)</label>
                               <input 
                                 type="number" 
                                 min="0" 
-                                step="0.1"
+                                step="1"
                                 value={item.subtotal === 0 ? '' : item.subtotal} 
                                 onChange={e => updateBasketItem(index, 'subtotal', e.target.value)} 
                                 className="saas-input" 
-                                style={{ fontWeight: 'bold', color: 'var(--primary-dark)', textAlign: 'right' }}
+                                style={{ fontWeight: 'bold', color: 'var(--primary-dark)', textAlign: 'right', fontSize: '1.125rem', padding: '0.75rem 0.5rem' }}
                               />
                             </div>
                           </div>
