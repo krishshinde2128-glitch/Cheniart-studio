@@ -584,59 +584,232 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
 
           {/* Quick Add Packaging */}
           <section className="glass-card" style={{ marginBottom: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1.5rem', fontFamily: "'Playfair Display', serif" }}>Quick Add Packaging</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0, fontFamily: "'Playfair Display', serif" }}>Quick Add Packaging</h2>
+              {additionalFees.some(f => f.type === 'Packaging') && (
+                <button
+                  onClick={() => {
+                    setIsEdited(true);
+                    setAdditionalFees(additionalFees.filter(f => f.type !== 'Packaging'));
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#ef4444',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0
+                  }}
+                >
+                  Clear All Packaging
+                </button>
+              )}
+            </div>
             
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Paper Bags</label>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                {BAG_OPTIONS.map(bag => (
-                  <button 
-                    key={bag.name}
-                    onClick={() => {
-                      setIsEdited(true);
-                      setAdditionalFees([...additionalFees, {
-                        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                        name: bag.name,
-                        type: 'Packaging',
-                        amount: bag.price,
-                        isIncludedInCost: true
-                      }]);
-                    }}
-                    className="flat-btn"
-                    style={{ padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', backgroundColor: '#FBF8F2', border: '1px solid rgba(122, 144, 120, 0.3)' }}
-                  >
-                    <span style={{ fontWeight: 500 }}>{bag.name}</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>+₹{bag.price.toFixed(2)}</span>
-                  </button>
-                ))}
+                {BAG_OPTIONS.map(bag => {
+                  const count = additionalFees.filter(f => f.name === bag.name && f.type === 'Packaging').length;
+                  const isSelected = count > 0;
+                  return (
+                    <div 
+                      key={bag.name}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        borderRadius: '9999px',
+                        border: isSelected ? '1.5px solid var(--primary-color)' : '1px solid rgba(122, 144, 120, 0.3)',
+                        backgroundColor: isSelected ? 'rgba(122, 144, 120, 0.12)' : '#FBF8F2',
+                        overflow: 'hidden',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setIsEdited(true);
+                          setAdditionalFees([...additionalFees, {
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                            name: bag.name,
+                            type: 'Packaging',
+                            amount: bag.price,
+                            isIncludedInCost: true
+                          }]);
+                        }}
+                        style={{
+                          padding: '0.6rem 1rem',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: '0.15rem'
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: '0.875rem', color: isSelected ? 'var(--primary-dark)' : 'var(--text-primary)' }}>
+                          {bag.name} {count > 0 && <span style={{ backgroundColor: 'var(--primary-color)', color: 'white', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '10px', marginLeft: '0.25rem' }}>x{count}</span>}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: isSelected ? 'var(--primary-dark)' : 'var(--text-secondary)' }}>+₹{bag.price.toFixed(2)}</span>
+                      </button>
+                      {isSelected && (
+                        <button
+                          type="button"
+                          title={`Remove one ${bag.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsEdited(true);
+                            // Remove the last added instance of this bag
+                            const lastIdx = additionalFees.map(f => f.name === bag.name && f.type === 'Packaging').lastIndexOf(true);
+                            if (lastIdx !== -1) {
+                              setAdditionalFees(additionalFees.filter((_, idx) => idx !== lastIdx));
+                            }
+                          }}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            padding: '0.6rem 0.75rem 0.6rem 0.25rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            <div>
+            <div style={{ marginBottom: additionalFees.some(f => f.type === 'Packaging') ? '1.5rem' : '0' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Plastic Covering</label>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                {PLASTIC_OPTIONS.map(plastic => (
-                  <button 
-                    key={plastic.name}
-                    onClick={() => {
-                      setIsEdited(true);
-                      setAdditionalFees([...additionalFees, {
-                        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                        name: plastic.name,
-                        type: 'Packaging',
-                        amount: plastic.price,
-                        isIncludedInCost: true
-                      }]);
-                    }}
-                    className="flat-btn"
-                    style={{ padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', backgroundColor: '#FBF8F2', border: '1px solid rgba(122, 144, 120, 0.3)' }}
-                  >
-                    <span style={{ fontWeight: 500 }}>{plastic.name}</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>+₹{plastic.price.toFixed(2)}</span>
-                  </button>
-                ))}
+                {PLASTIC_OPTIONS.map(plastic => {
+                  const count = additionalFees.filter(f => f.name === plastic.name && f.type === 'Packaging').length;
+                  const isSelected = count > 0;
+                  return (
+                    <div 
+                      key={plastic.name}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        borderRadius: '9999px',
+                        border: isSelected ? '1.5px solid var(--primary-color)' : '1px solid rgba(122, 144, 120, 0.3)',
+                        backgroundColor: isSelected ? 'rgba(122, 144, 120, 0.12)' : '#FBF8F2',
+                        overflow: 'hidden',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setIsEdited(true);
+                          setAdditionalFees([...additionalFees, {
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                            name: plastic.name,
+                            type: 'Packaging',
+                            amount: plastic.price,
+                            isIncludedInCost: true
+                          }]);
+                        }}
+                        style={{
+                          padding: '0.6rem 1rem',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: '0.15rem'
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: '0.875rem', color: isSelected ? 'var(--primary-dark)' : 'var(--text-primary)' }}>
+                          {plastic.name} {count > 0 && <span style={{ backgroundColor: 'var(--primary-color)', color: 'white', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '10px', marginLeft: '0.25rem' }}>x{count}</span>}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: isSelected ? 'var(--primary-dark)' : 'var(--text-secondary)' }}>+₹{plastic.price.toFixed(2)}</span>
+                      </button>
+                      {isSelected && (
+                        <button
+                          type="button"
+                          title={`Remove one ${plastic.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsEdited(true);
+                            const lastIdx = additionalFees.map(f => f.name === plastic.name && f.type === 'Packaging').lastIndexOf(true);
+                            if (lastIdx !== -1) {
+                              setAdditionalFees(additionalFees.filter((_, idx) => idx !== lastIdx));
+                            }
+                          }}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            padding: '0.6rem 0.75rem 0.6rem 0.25rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
+
+            {/* Selected packaging preview & removal list */}
+            {additionalFees.some(f => f.type === 'Packaging') && (
+              <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed rgba(0,0,0,0.1)' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Added Packaging Items ({additionalFees.filter(f => f.type === 'Packaging').length}):
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {additionalFees.filter(f => f.type === 'Packaging').map(fee => (
+                    <div 
+                      key={fee.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.35rem 0.75rem',
+                        backgroundColor: 'white',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        borderRadius: '6px',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      <span style={{ fontWeight: 500 }}>{fee.name}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>₹{fee.amount.toFixed(2)}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFee(fee.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                        title="Remove"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Add Fee Section */}
