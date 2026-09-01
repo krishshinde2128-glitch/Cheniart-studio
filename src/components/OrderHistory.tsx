@@ -146,7 +146,7 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                 <thead>
                   <tr>
                     <th 
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                      style={{ cursor: 'pointer', userSelect: 'none', width: '110px' }}
                       onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -154,15 +154,15 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                         <ArrowUpDown size={14} style={{ opacity: 0.5 }} />
                       </div>
                     </th>
-                    <th>Name</th>
-                    <th>Order Details</th>
-                    <th>Delivery Status</th>
-                    <th className="number-col">Total Charged</th>
-                  <th className="number-col highlight-gray">Profit</th>
-                  <th>Payment Status</th>
-                  <th>Payment Mode</th>
-                  <th style={{ width: '60px', textAlign: 'center' }}>Actions</th>
-                </tr>
+                    <th style={{ width: '140px' }}>Name</th>
+                    <th style={{ minWidth: '220px', maxWidth: '320px' }}>Order Details</th>
+                    <th style={{ width: '140px' }}>Delivery Status</th>
+                    <th className="number-col" style={{ width: '110px' }}>Total Charged</th>
+                    <th className="number-col highlight-gray" style={{ width: '90px' }}>Profit</th>
+                    <th style={{ width: '120px' }}>Payment Status</th>
+                    <th style={{ width: '120px' }}>Payment Mode</th>
+                    <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
+                  </tr>
               </thead>
               <tbody>
                 {sortedOrders.map(order => (
@@ -281,7 +281,7 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                           </div>
                         )}
                       </td>
-                      <td onClick={(e) => { e.stopPropagation(); setEditOrderModal(order); }} style={{ cursor: 'pointer', maxWidth: '360px' }} title="Click to edit full Order Details">
+                      <td onClick={(e) => { e.stopPropagation(); setEditOrderModal(order); }} style={{ cursor: 'pointer', maxWidth: '300px', whiteSpace: 'normal', wordBreak: 'break-word' }} title="Click to edit full Order Details">
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' }}>
                           <span style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                             {order.items.length > 0 ? (
@@ -297,7 +297,8 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                                       padding: '0.1rem 0.45rem', 
                                       borderRadius: '9999px',
                                       fontSize: '0.75rem',
-                                      fontWeight: 600
+                                      fontWeight: 600,
+                                      whiteSpace: 'nowrap'
                                     }}
                                   >
                                     +{order.items.length - 5} more
@@ -310,7 +311,7 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                           </span>
                         </div>
                       </td>
-                      <td onClick={(e) => e.stopPropagation()}>
+                      <td onClick={(e) => e.stopPropagation()} style={{ minWidth: '130px', whiteSpace: 'nowrap' }}>
                         {order.isDelivered ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(122, 144, 120, 0.1)', color: 'var(--primary-color)', padding: '0.35rem 0.75rem', borderRadius: 'var(--radius-full)', fontSize: '0.8125rem', fontWeight: 600, width: 'max-content' }}>
                             <span>✅ Delivered</span>
