@@ -1,18 +1,18 @@
 import { useNavigate } from 'react-router-dom';
-import { Package, Flower2, ChevronRight, Calculator, History, Wallet } from 'lucide-react';
-import type { FlowerData, Order, Expense } from '../types';
+import { Package, Flower2, ChevronRight, Calculator, History, Wallet, Store } from 'lucide-react';
+import type { FlowerData, Order, Expense, PopUpEvent } from '../types';
 import { Navbar } from './Navbar';
 
 import './LandingPage.css';
 
 interface LandingPageProps {
-  
   flowers: FlowerData[];
   orders: Order[];
   expenses: Expense[];
+  popups: PopUpEvent[];
 }
 
-export function LandingPage({ flowers, orders, expenses }: LandingPageProps) {
+export function LandingPage({ flowers, orders, expenses, popups }: LandingPageProps) {
   const navigate = useNavigate();
   const totalTypes = flowers.length;
   
@@ -31,11 +31,11 @@ export function LandingPage({ flowers, orders, expenses }: LandingPageProps) {
   const pendingOrders = orders.filter(o => o.paymentStatus === 'Pending');
   const halfPaidOrders = orders.filter(o => o.paymentStatus === 'Half Payment');
 
-  const totalRevenue = 
+  const baseTotalRevenue = 
     paidOrders.reduce((sum, order) => sum + (Number(order.totalPrice) || 0), 0) +
     halfPaidOrders.reduce((sum, order) => sum + ((Number(order.totalPrice) || 0) * 0.5), 0);
     
-  const totalProfit = 
+  const baseTotalProfit = 
     paidOrders.reduce((sum, order) => {
       const profit = Number(order.profit) || (Number(order.totalPrice) - Number(order.totalCost)) || 0;
       return sum + profit;
@@ -44,6 +44,25 @@ export function LandingPage({ flowers, orders, expenses }: LandingPageProps) {
       const profit = Number(order.profit) || (Number(order.totalPrice) - Number(order.totalCost)) || 0;
       return sum + (profit * 0.5);
     }, 0);
+
+  // Popup Calculations
+  const popupTotalRevenue = (popups || []).reduce((sum, popup) => {
+    const eventSales = (popup.sales || []).reduce((s, sale) => s + sale.totalPrice, 0);
+    return sum + eventSales;
+  }, 0);
+
+  const popupTotalProfit = (popups || []).reduce((sum, popup) => {
+    const totalSales = (popup.sales || []).reduce((s, sale) => s + sale.totalPrice, 0);
+    const itemsSoldValueCost = (popup.checklist || []).reduce((s, item) => s + ((item.initialQty - item.currentQty) * item.unitCost), 0);
+    const profit = totalSales - popup.stallFee - itemsSoldValueCost;
+    return sum + profit;
+  }, 0);
+
+  const popupTotalOrders = (popups || []).reduce((sum, popup) => sum + (popup.sales || []).length, 0);
+
+  const totalRevenue = baseTotalRevenue + popupTotalRevenue;
+  const totalProfit = baseTotalProfit + popupTotalProfit;
+  const combinedTotalOrders = orders.length + popupTotalOrders;
     
   const totalPendingAmount = 
     pendingOrders.reduce((sum, order) => sum + (Number(order.totalPrice) || 0), 0) +
@@ -138,7 +157,7 @@ export function LandingPage({ flowers, orders, expenses }: LandingPageProps) {
               </button>
               
               <div className="stat-widget" style={{ margin: 0, height: '100%' }}>
-                <span className="widget-val">{orders.length}</span>
+                <span className="widget-val">{combinedTotalOrders}</span>
                 <span className="widget-lbl">Total Orders</span>
               </div>
             </div>
@@ -193,6 +212,20 @@ export function LandingPage({ flowers, orders, expenses }: LandingPageProps) {
             <p className="card-description">Visualize performance with comprehensive data dashboards, revenue trends, and tracking insight into business growth over time.</p>
             <button className="arrow-btn" onClick={() => navigate('/analytics')} style={{ marginTop: 'auto' }}>
               View Analytics <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Feature: Pop-ups & Events */}
+        <div className="feature-card">
+          <div className="icon-container">
+            <Store size={28} strokeWidth={1.5} />
+          </div>
+          <div className="card-content">
+            <h2 className="card-title">Pop-ups & Events</h2>
+            <p className="card-description">Manage physical stall sales, track item checklists, log live orders dynamically, and calculate event profitability.</p>
+            <button className="arrow-btn" onClick={() => navigate('/popups')} style={{ marginTop: 'auto' }}>
+              Manage Events <ChevronRight size={18} />
             </button>
           </div>
         </div>

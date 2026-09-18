@@ -473,16 +473,24 @@ export function OrderHistory({ orders, onUpdateOrder, onDeleteOrder, onAddOrder,
                                         <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 500 }}>₹{(item.unitSellingPrice * item.quantity).toFixed(0)}</td>
                                       </tr>
                                     ))}
-                                    {order.additionalFees && order.additionalFees.map(fee => (
-                                      <tr key={fee.id}>
-                                        <td style={{ padding: '0.5rem 1rem' }}>
-                                          <span style={{ fontSize: '0.65rem', backgroundColor: 'rgba(0,0,0,0.05)', padding: '0.1rem 0.3rem', borderRadius: '4px', marginRight: '0.5rem' }}>FEE</span>
-                                          {fee.name}
-                                        </td>
-                                        <td style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>-</td>
-                                        <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 500 }}>₹{fee.amount.toFixed(0)}</td>
-                                      </tr>
-                                    ))}
+                                    {order.additionalFees && order.additionalFees.map(fee => {
+                                      const price = fee.sellingPrice !== undefined ? fee.sellingPrice : fee.amount;
+                                      return (
+                                        <tr key={fee.id}>
+                                          <td style={{ padding: '0.5rem 1rem' }}>
+                                            <span style={{ fontSize: '0.65rem', backgroundColor: 'rgba(0,0,0,0.05)', padding: '0.1rem 0.3rem', borderRadius: '4px', marginRight: '0.5rem', textTransform: 'uppercase', fontWeight: 600, color: fee.type === 'Custom' ? 'var(--primary-color)' : 'var(--text-secondary)' }}>
+                                              {fee.type === 'Custom' ? 'CUSTOM' : fee.type === 'Packaging' ? 'PACKAGING' : fee.type === 'Shipping' ? 'SHIPPING' : 'FEE'}
+                                            </span>
+                                            {fee.name}
+                                            {fee.cost !== undefined && fee.cost > 0 && (
+                                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>(Cost: ₹{fee.cost.toFixed(0)})</span>
+                                            )}
+                                          </td>
+                                          <td style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>-</td>
+                                          <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 500 }}>₹{price.toFixed(0)}</td>
+                                        </tr>
+                                      );
+                                    })}
 
                                     {!!order.shippingCost && order.shippingCost > 0 && (
                                       <tr>

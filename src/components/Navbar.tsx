@@ -12,6 +12,7 @@ export function Navbar() {
     { name: 'Orders', path: '/history' },
     { name: 'Expenses', path: '/expenses' },
     { name: 'Live Stock', path: '/stock' },
+    { name: 'Pop-ups', path: '/popups' },
     { name: 'Analytics', path: '/analytics' }
   ];
 

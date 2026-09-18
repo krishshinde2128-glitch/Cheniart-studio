@@ -62,6 +62,8 @@ export interface AdditionalFee {
   name: string;
   type: 'Bouquet Arrangement' | 'Packaging' | 'Shipping' | 'Custom';
   amount: number;
+  cost?: number;
+  sellingPrice?: number;
   isIncludedInCost?: boolean;
 }
 
@@ -112,4 +114,35 @@ export interface StockItem {
   name: string;
   category: 'Pipe Cleaners' | 'Wrapping Sheets' | 'Accessories' | 'Mesh Wrap' | 'Ribbons';
   count: number;
+}
+
+export interface PopUpChecklistItem {
+  id: string;
+  flowerName: string;
+  initialQty: number;
+  currentQty: number;
+  unitCost: number;
+  unitSellingPrice: number;
+}
+
+export interface PopUpSaleItem {
+  id: string;
+  flowerName: string;
+  qty: number;
+  unitPrice: number;
+  totalPrice: number;
+  dayIndex: number;
+  timestamp: string;
+}
+
+export interface PopUpEvent {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  stallFee: number;
+  status: 'Active' | 'Completed';
+  currentDayIndex: number;
+  checklist: PopUpChecklistItem[];
+  sales: PopUpSaleItem[];
 }

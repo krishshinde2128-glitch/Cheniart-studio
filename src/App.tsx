@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Plus, Download, Trash2, Search } from 'lucide-react';
 import { UNIT_PRICES } from './constants';
-import { isFlowerPot, isKeychain, normalizeCategory, type FlowerData, type Order, type Expense, type StockItem } from './types';
+import { isFlowerPot, isKeychain, normalizeCategory, type FlowerData, type Order, type Expense, type StockItem, type PopUpEvent } from './types';
 import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { AddFlowerModal } from './components/AddFlowerModal';
@@ -13,6 +13,7 @@ import { StockExpenses } from './components/StockExpenses';
 import { StockInventory } from './components/StockInventory';
 import { MonthlyAnalytics } from './components/MonthlyAnalytics';
 import { Navbar } from './components/Navbar';
+import { PopUps } from './components/PopUps';
 import { showToast } from './components/Toast';
 import './App.css';
 
@@ -41,6 +42,7 @@ function App() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [stock, setStock] = useState<StockItem[]>([]);
+  const [popups, setPopups] = useState<PopUpEvent[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,11 +78,18 @@ function App() {
       setStock(dbStock);
     }, (error) => console.error(error));
 
+    const qPopups = query(collection(db, 'popups'), orderBy('startDate', 'desc'));
+    const unsubPopups = onSnapshot(qPopups, (snapshot) => {
+      const dbPopups = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as PopUpEvent));
+      setPopups(dbPopups);
+    }, (error) => console.error(error));
+
     return () => {
       unsubFlowers();
       unsubOrders();
       unsubExpenses();
       unsubStock();
+      unsubPopups();
     };
   }, []);
 
@@ -329,7 +338,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<LandingPage flowers={flowers} orders={orders} expenses={expenses} />} />
+        <Route path="/" element={<LandingPage flowers={flowers} orders={orders} expenses={expenses} popups={popups} />} />
         <Route path="/calculator" element={
           <OrderCalculator
             flowers={flowers}
@@ -417,6 +426,21 @@ function App() {
             onDeleteStock={handleDeleteStock}
             onMergeDuplicates={handleMergeDuplicatesStock}
             onAddStock={handleAddStock}
+          />
+        } />
+        <Route path="/popups" element={
+          <PopUps 
+            popups={popups} 
+            flowers={flowers} 
+            onUpdatePopup={async (id: string, updates: Partial<PopUpEvent>) => {
+              try { await updateDoc(doc(db, 'popups', id), updates); } catch (e) { console.error(e); }
+            }}
+            onAddPopup={async (popupData: Omit<PopUpEvent, 'id'>) => {
+              try { await addDoc(collection(db, 'popups'), popupData); } catch (e) { console.error(e); }
+            }}
+            onDeletePopup={async (id: string) => {
+              try { await deleteDoc(doc(db, 'popups', id)); } catch (e) { console.error(e); }
+            }}
           />
         } />
         <Route path="/analytics" element={<MonthlyAnalytics orders={orders} expenses={expenses} />} />

@@ -149,12 +149,17 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
 
     const legacyFees = [initialOrder?.bouquetFee, initialOrder?.deliveryFee, initialOrder?.extraItemPrice]
       .filter((v): v is number => v !== undefined && v > 0)
-      .map((amount, i) => ({ id: `legacy-${i}`, name: 'Legacy Fee', type: 'Custom' as const, amount, isIncludedInCost: true }));
+      .map((amount, i) => ({ id: `legacy-${i}`, name: 'Legacy Fee', type: 'Custom' as const, amount, cost: amount, sellingPrice: amount, isIncludedInCost: true }));
 
     return [...fees, ...legacyFees];
   });
   
-  const [feeType, setFeeType] = useState<'Bouquet Arrangement' | 'Packaging' | 'Shipping' | 'Custom'>('Packaging');
+  // Custom Items dedicated section state
+  const [customItemName, setCustomItemName] = useState<string>('');
+  const [customItemCost, setCustomItemCost] = useState<number | ''>('');
+  const [customItemPrice, setCustomItemPrice] = useState<number | ''>('');
+
+  const [feeType, setFeeType] = useState<'Bouquet Arrangement' | 'Packaging' | 'Shipping' | 'Custom'>('Shipping');
   const [feeAmount, setFeeAmount] = useState<number | ''>('');
   const [customFeeName, setCustomFeeName] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>(initialOrder?.customerName || '');
@@ -212,6 +217,45 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
     ));
   };
 
+  const handleAddCustomItem = () => {
+    if (!customItemName.trim() || customItemPrice === '' || Number(customItemPrice) < 0) return;
+    setIsEdited(true);
+    const cost = customItemCost === '' ? 0 : Number(customItemCost);
+    const sellingPrice = Number(customItemPrice);
+    const newFee: AdditionalFee = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      name: customItemName.trim(),
+      type: 'Custom',
+      cost,
+      sellingPrice,
+      amount: sellingPrice,
+      isIncludedInCost: true
+    };
+    setAdditionalFees([...additionalFees, newFee]);
+    setCustomItemName('');
+    setCustomItemCost('');
+    setCustomItemPrice('');
+  };
+
+  const handleUpdateCustomFee = (id: string, field: 'cost' | 'sellingPrice' | 'name', value: any) => {
+    setIsEdited(true);
+    setAdditionalFees(additionalFees.map(fee => {
+      if (fee.id !== id) return fee;
+      if (field === 'cost') {
+        const c = value === '' ? 0 : parseFloat(value) || 0;
+        return { ...fee, cost: c };
+      }
+      if (field === 'sellingPrice') {
+        const sp = value === '' ? 0 : parseFloat(value) || 0;
+        return { ...fee, sellingPrice: sp, amount: sp };
+      }
+      if (field === 'name') {
+        return { ...fee, name: value };
+      }
+      return fee;
+    }));
+  };
+
   const handleAddFee = () => {
     if (feeAmount === '' || feeAmount <= 0) return;
     setIsEdited(true);
@@ -224,6 +268,8 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
       name,
       type: feeType,
       amount: feeAmount,
+      cost: feeType === 'Custom' ? feeAmount : undefined,
+      sellingPrice: feeType === 'Custom' ? feeAmount : undefined,
       isIncludedInCost: true
     };
     setAdditionalFees([...additionalFees, newFee]);
@@ -260,12 +306,31 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
     }
 
     const itemsTotalPrice = items.reduce((sum, item) => sum + (item.unitSellingPrice * item.quantity), 0);
-    const additionalFeesTotal = additionalFees.reduce((sum, f) => sum + f.amount, 0);
     const totalArrangementFees = Object.values(sectionInputs).reduce((sum, state) => sum + (state.arrangementFee || 0), 0);
-    
-    // New logic: Total Base Cost is Bouquet Costs + Additional Fees (which includes Shipping)
-    const finalTotalCost = sumOfBouquetCosts + additionalFeesTotal; 
-    const calculatedTotalPrice = itemsTotalPrice + additionalFeesTotal + totalArrangementFees;
+
+    let additionalFeesCost = 0;
+    let additionalFeesPrice = 0;
+
+    additionalFees.forEach(fee => {
+      if (fee.type === 'Custom') {
+        const itemCost = fee.cost !== undefined ? Number(fee.cost) : Number(fee.amount || 0);
+        const itemPrice = fee.sellingPrice !== undefined ? Number(fee.sellingPrice) : Number(fee.amount || 0);
+        additionalFeesCost += itemCost;
+        additionalFeesPrice += itemPrice;
+      } else {
+        additionalFeesCost += Number(fee.amount || 0);
+        additionalFeesPrice += Number(fee.amount || 0);
+      }
+    });
+
+    const customTotalCost = additionalFees.filter(f => f.type === 'Custom').reduce((sum, f) => sum + (f.cost !== undefined ? Number(f.cost) : Number(f.amount || 0)), 0);
+    if (customTotalCost > 0) {
+      breakdowns.push({ label: 'Custom Items Cost', amount: customTotalCost });
+    }
+
+    // Total Base Cost is Bouquet Costs + Additional Fees Costs
+    const finalTotalCost = sumOfBouquetCosts + additionalFeesCost; 
+    const calculatedTotalPrice = itemsTotalPrice + additionalFeesPrice + totalArrangementFees;
     
     // Manual Quote Override applied here
     const finalTotalPrice = isManualOverride && manualQuote !== '' ? parseFloat(manualQuote) || 0 : calculatedTotalPrice;
@@ -335,6 +400,9 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
         setManualQuote('');
         setSectionInputs({});
         setBouquetCount(1);
+        setCustomItemName('');
+        setCustomItemCost('');
+        setCustomItemPrice('');
         setIsEdited(false);
       }
     } catch (error) {
@@ -812,9 +880,160 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
             )}
           </section>
 
-          {/* Add Fee Section */}
+          {/* Custom Items & Additions Section */}
+          <section className="glass-card" style={{ marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0, fontFamily: "'Playfair Display', serif" }}>Custom Items & Additions</h2>
+              {additionalFees.some(f => f.type === 'Custom') && (
+                <button
+                  onClick={() => {
+                    setIsEdited(true);
+                    setAdditionalFees(additionalFees.filter(f => f.type !== 'Custom'));
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#ef4444',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0
+                  }}
+                >
+                  Clear All Custom Items
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: additionalFees.some(f => f.type === 'Custom') ? '1.5rem' : '0' }}>
+              <div style={{ flex: '2 1 200px' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Item Name</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Mala, Greeting Card, Ribbon Topper..."
+                  value={customItemName}
+                  onChange={(e) => setCustomItemName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddCustomItem();
+                  }}
+                  className="saas-input"
+                />
+              </div>
+              <div style={{ flex: '1 1 120px' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Cost Price (₹)</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  placeholder="0"
+                  value={customItemCost === '' ? '' : customItemCost}
+                  onChange={(e) => setCustomItemCost(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddCustomItem();
+                  }}
+                  className="saas-input"
+                />
+              </div>
+              <div style={{ flex: '1 1 120px' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--primary-color)', marginBottom: '0.5rem' }}>Selling Price (₹) *</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  placeholder="0"
+                  value={customItemPrice === '' ? '' : customItemPrice}
+                  onChange={(e) => setCustomItemPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddCustomItem();
+                  }}
+                  className="saas-input"
+                  style={{ border: '1px solid rgba(122, 144, 120, 0.5)', backgroundColor: '#FBF8F2' }}
+                />
+              </div>
+              <button 
+                className="flat-btn" 
+                onClick={handleAddCustomItem}
+                disabled={!customItemName.trim() || customItemPrice === '' || Number(customItemPrice) < 0}
+                style={{ height: '44px', opacity: (!customItemName.trim() || customItemPrice === '' || Number(customItemPrice) < 0) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <Plus size={18} /> Add Custom Item
+              </button>
+            </div>
+
+            {/* Custom Items Table */}
+            {additionalFees.some(f => f.type === 'Custom') && (
+              <div className="table-wrapper" style={{ marginTop: '1rem', borderTop: '1px dashed rgba(0,0,0,0.1)', paddingTop: '1rem' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Item Name</th>
+                      <th className="number-col">Cost Price</th>
+                      <th className="number-col">Selling Price</th>
+                      <th className="number-col highlight-gray">Profit</th>
+                      <th style={{ width: '60px', textAlign: 'center' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {additionalFees.filter(f => f.type === 'Custom').map(fee => {
+                      const cost = fee.cost !== undefined ? fee.cost : (fee.amount || 0);
+                      const price = fee.sellingPrice !== undefined ? fee.sellingPrice : (fee.amount || 0);
+                      const profit = price - cost;
+                      return (
+                        <tr key={fee.id}>
+                          <td className="font-medium">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', backgroundColor: 'rgba(122, 144, 120, 0.1)', color: 'var(--primary-color)', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}>CUSTOM</span>
+                              <span>{fee.name}</span>
+                            </div>
+                          </td>
+                          <td className="number-col">
+                            <div className="editable-wrapper" style={{ width: '90px', margin: '0 0 0 auto' }}>
+                              <span>₹</span>
+                              <input 
+                                type="number" 
+                                value={cost || ''}
+                                placeholder="0"
+                                onChange={(e) => handleUpdateCustomFee(fee.id, 'cost', e.target.value)}
+                                className="price-input"
+                                style={{ width: '100%', textAlign: 'right' }}
+                              />
+                            </div>
+                          </td>
+                          <td className="number-col">
+                            <div className="editable-wrapper" style={{ width: '90px', margin: '0 0 0 auto', border: '1.5px solid rgba(122, 144, 120, 0.4)' }}>
+                              <span style={{ fontWeight: 600 }}>₹</span>
+                              <input 
+                                type="number" 
+                                value={price || ''}
+                                placeholder="0"
+                                onChange={(e) => handleUpdateCustomFee(fee.id, 'sellingPrice', e.target.value)}
+                                className="price-input"
+                                style={{ width: '100%', textAlign: 'right', fontWeight: 600 }}
+                              />
+                            </div>
+                          </td>
+                          <td className="number-col font-medium highlight-gray">
+                            ₹{profit.toFixed(0)}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button 
+                              onClick={() => handleRemoveFee(fee.id)}
+                              style={{ color: '#ef4444', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', padding: '0.5rem' }}
+                              title="Remove Custom Item"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {/* Other Additional Fees Section */}
           <section className="glass-card">
-            <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1.5rem', fontFamily: "'Playfair Display', serif" }}>Additional Fees</h2>
+            <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1.5rem', fontFamily: "'Playfair Display', serif" }}>Other Additional Fees</h2>
             
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 200px' }}>
@@ -824,10 +1043,10 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
                   value={feeType}
                   onChange={(e) => setFeeType(e.target.value as any)}
                 >
-                  <option value="Packaging">Packaging</option>
-                  <option value="Bouquet Arrangement">Bouquet Arrangement</option>
                   <option value="Shipping">Shipping/Delivery</option>
-                  <option value="Custom">Custom</option>
+                  <option value="Bouquet Arrangement">Bouquet Arrangement</option>
+                  <option value="Packaging">Packaging</option>
+                  <option value="Custom">Other Fee</option>
                 </select>
               </div>
               {feeType === 'Custom' && (
@@ -859,13 +1078,13 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
                 disabled={feeAmount === '' || feeAmount <= 0 || (feeType === 'Custom' && !customFeeName.trim())}
                 style={{ height: '48px', opacity: (feeAmount === '' || feeAmount <= 0 || (feeType === 'Custom' && !customFeeName.trim())) ? 0.5 : 1 }}
               >
-                <Plus size={18} /> Add
+                <Plus size={18} /> Add Fee
               </button>
             </div>
 
-            {additionalFees.length > 0 && (
+            {additionalFees.filter(f => f.type !== 'Packaging' && f.type !== 'Custom').length > 0 && (
               <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {additionalFees.map(fee => (
+                {additionalFees.filter(f => f.type !== 'Packaging' && f.type !== 'Custom').map(fee => (
                   <div key={fee.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.05)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', backgroundColor: 'white', padding: '0.2rem 0.4rem', borderRadius: '4px', color: 'var(--text-secondary)', border: '1px solid rgba(0,0,0,0.05)' }}>{fee.type}</span>
