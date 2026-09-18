@@ -48,20 +48,34 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
   const [isEdited, setIsEdited] = useState(false);
   const [items, setItems] = useState<OrderItem[]>(() => {
     if (!initialOrder?.items) return [];
-    return initialOrder.items.map(item => {
+
+    // Combine duplicate items in the same bouquet section if present
+    const combinedMap = new Map<string, OrderItem>();
+
+    initialOrder.items.forEach(item => {
       const match = flowers.find(f => f.id === item.flowerId || f.name.toLowerCase() === item.flowerName.toLowerCase());
       
       // Always look up current costs/prices from db if match found to ensure up-to-date edits
       const unitCost = match ? getFlowerCost(match) : (item.unitCost || 0);
       const unitSellingPrice = match ? (match.sellingPrice || 0) : (item.unitSellingPrice || 0);
+      const bouquetIndex = item.bouquetIndex || 1; // Legacy items default to Bouquet 1
+      const flowerKey = `${item.flowerId || item.flowerName.toLowerCase().trim()}_b${bouquetIndex}`;
 
-      return {
-        ...item,
-        unitCost,
-        unitSellingPrice,
-        bouquetIndex: item.bouquetIndex || 1 // Legacy items default to Bouquet 1
-      };
+      if (combinedMap.has(flowerKey)) {
+        const existing = combinedMap.get(flowerKey)!;
+        existing.quantity += Number(item.quantity || 1);
+      } else {
+        combinedMap.set(flowerKey, {
+          ...item,
+          quantity: Number(item.quantity || 1),
+          unitCost,
+          unitSellingPrice,
+          bouquetIndex
+        });
+      }
     });
+
+    return Array.from(combinedMap.values());
   });
 
   const initialBouquetCount = useMemo(() => {
@@ -191,23 +205,48 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
     const flower = flowers.find(f => f.id === flowerId);
     if (!flower || input.addQty <= 0) return;
 
-    const newItem: OrderItem = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      flowerId: flower.id,
-      flowerName: flower.name,
-      quantity: input.addQty,
-      unitCost: getFlowerCost(flower),
-      unitSellingPrice: flower.sellingPrice || 0,
-      bouquetIndex: parseInt(sectionKey)
-    };
+    const bIndex = parseInt(sectionKey, 10);
+    const existingIndex = items.findIndex(
+      item => 
+        (item.flowerId === flower.id || item.flowerName.toLowerCase().trim() === flower.name.toLowerCase().trim()) && 
+        (item.bouquetIndex || 1) === bIndex
+    );
 
-    setItems([...items, newItem]);
+    if (existingIndex !== -1) {
+      setItems(prevItems => {
+        const updated = [...prevItems];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + input.addQty
+        };
+        return updated;
+      });
+    } else {
+      const newItem: OrderItem = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        flowerId: flower.id,
+        flowerName: flower.name,
+        quantity: input.addQty,
+        unitCost: getFlowerCost(flower),
+        unitSellingPrice: flower.sellingPrice || 0,
+        bouquetIndex: bIndex
+      };
+      setItems(prevItems => [...prevItems, newItem]);
+    }
+
     updateSectionInput(sectionKey, { searchQuery: '', isDropdownOpen: false, addQty: 1 });
   };
 
   const handleRemoveItem = (id: string) => {
     setIsEdited(true);
     setItems(items.filter(item => item.id !== id));
+  };
+
+  const handleUpdateItemQuantity = (id: string, newQty: number) => {
+    setIsEdited(true);
+    setItems(prevItems => prevItems.map(item => 
+      item.id === id ? { ...item, quantity: newQty } : item
+    ));
   };
 
   const handleUpdateItemPrice = (id: string, newPrice: number) => {
@@ -600,7 +639,27 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
                         {sectionItems.map(item => (
                           <tr key={item.id}>
                             <td className="font-medium">{item.flowerName}</td>
-                            <td className="number-col">{item.quantity}</td>
+                            <td className="number-col">
+                              <div className="editable-wrapper" style={{ width: '70px', margin: '0 0 0 auto' }}>
+                                <input 
+                                  type="number" 
+                                  min="1"
+                                  value={item.quantity === 0 ? '' : item.quantity}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                    handleUpdateItemQuantity(item.id, isNaN(val) ? 0 : Math.max(0, val));
+                                  }}
+                                  onBlur={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    if (isNaN(val) || val <= 0) {
+                                      handleUpdateItemQuantity(item.id, 1);
+                                    }
+                                  }}
+                                  className="price-input"
+                                  style={{ width: '100%', textAlign: 'center' }}
+                                />
+                              </div>
+                            </td>
                             <td className="number-col">
                               <div className="editable-wrapper" style={{ width: '100px', margin: '0 0 0 auto' }}>
                                 <span>₹</span>

@@ -218,14 +218,9 @@ function App() {
       const polQty = Number(newFlower.pollenQty) || 0;
       const gQty = Number(newFlower.glueQty) || 0;
       const extC = Number(newFlower.extraCosts) || 0;
-      const tMarg = Number(newFlower.targetMargin) || 0;
 
-      let totalCost = calculateProductCost(newFlower);
-
-      let sPrice = Number(newFlower.sellingPrice) || 0;
-      if (tMarg > 0 && tMarg < 100) {
-        sPrice = totalCost / (1 - (tMarg / 100));
-      }
+      const totalCost = calculateProductCost(newFlower);
+      const sPrice = Number(newFlower.sellingPrice) || 0;
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id, ...productDataWithoutId } = newFlower;
@@ -237,7 +232,6 @@ function App() {
         glueQty: gQty,
         extraCosts: extC,
         sellingPrice: sPrice,
-        targetMargin: tMarg,
         totalCost: totalCost,
         actualMaterialCost: (newFlower as any).actualMaterialCost || undefined,
         isStockDeducted: (newFlower as any).isStockDeducted || false
@@ -262,25 +256,6 @@ function App() {
     const updatedF = { ...f, [field]: field === 'name' || field === 'category' ? value : Number(value) || 0 };
     if (field === 'category') {
       updatedF.category = normalizeCategory(value as string);
-    }
-
-    // Compute raw cost immediately with new values
-    const newCost = calculateProductCost(updatedF);
-
-    if (field === 'targetMargin') {
-      const tm = Number(value) || 0;
-      if (tm < 100) updatedF.sellingPrice = newCost / (1 - (tm / 100));
-    } else if (field === 'sellingPrice') {
-      const sp = Number(value) || 0;
-      if (sp > 0) updatedF.targetMargin = ((sp - newCost) / sp) * 100;
-      else updatedF.targetMargin = 0;
-    } else if (field !== 'name') {
-      // Derived ingredient edit -> push existing margin to new selling price
-      const tm = updatedF.targetMargin !== undefined ? updatedF.targetMargin :
-        (updatedF.sellingPrice > 0 ? ((updatedF.sellingPrice - newCost) / updatedF.sellingPrice) * 100 : 0);
-
-      if (tm < 100) updatedF.sellingPrice = newCost / (1 - (tm / 100));
-      updatedF.targetMargin = tm; // lock the implied margin
     }
 
     try {
@@ -321,16 +296,12 @@ function App() {
   const tableData = useMemo(() => {
     return flowers.map(flower => {
       const costPrice = calculateProductCost(flower);
-
       const profit = flower.sellingPrice - costPrice;
-      const hasCustomMargin = flower.targetMargin !== undefined && flower.targetMargin !== null && (flower.targetMargin as any) !== "" && flower.targetMargin !== 0;
-      const profitMargin = hasCustomMargin ? Number(flower.targetMargin) : (flower.sellingPrice > 0 ? (profit / flower.sellingPrice) * 100 : 0);
 
       return {
         ...flower,
         costPrice,
-        profit,
-        profitMargin
+        profit
       };
     });
   }, [flowers]);
@@ -504,13 +475,12 @@ function App() {
                           Selling Price <span style={{ fontSize: '0.875rem', marginLeft: '4px', opacity: 0.8 }}>↑</span>
                         </th>
                         <th className="number-col highlight-gray">Profit (₹)</th>
-                        <th className="number-col highlight-green" style={{ color: 'var(--primary-color)' }}>Target Margin %</th>
                         <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {tableData.filter(r => (!r.category || (!isKeychain(r.category) && !isFlowerPot(r.category))) && r.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
-                        <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No items yet</td></tr>
+                        <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No items yet</td></tr>
                       ) : (
                         tableData
                           .filter(r => (!r.category || (!isKeychain(r.category) && !isFlowerPot(r.category))) && r.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -561,16 +531,6 @@ function App() {
                                 </div>
                               </td>
                               <td className="number-col font-medium highlight-gray">₹{row.profit.toFixed(0)}</td>
-                              <td className="number-col font-bold highlight-green">
-                                <div className="editable-wrapper" style={{ backgroundColor: 'rgba(122, 144, 120, 0.1)', border: '1px solid rgba(122, 144, 120, 0.2)', padding: '0.1rem 0.5rem', borderRadius: '4px', width: 'fit-content', marginLeft: 'auto' }}>
-                                  <input
-                                    type="number" value={row.profitMargin != null && (row.profitMargin as any) !== "" ? Number(row.profitMargin).toFixed(1) : ''}
-                                    onChange={(e) => handleUpdateFlowerDatabase(row.id, 'targetMargin', e.target.value)}
-                                    className="price-input" style={{ width: '50px', backgroundColor: 'transparent', color: 'var(--primary-color)' }}
-                                  />
-                                  <span style={{ color: 'var(--primary-color)' }}>%</span>
-                                </div>
-                              </td>
                               <td style={{ textAlign: 'center' }}>
                                 <button onClick={() => handleDeleteFlower(row.id, row.name)} style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: 'none', cursor: 'pointer', padding: '0.4rem', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }} title="Delete Flower">
                                   <Trash2 size={18} />
@@ -603,13 +563,12 @@ function App() {
                           Selling Price <span style={{ fontSize: '0.875rem', marginLeft: '4px', opacity: 0.8 }}>↑</span>
                         </th>
                         <th className="number-col highlight-gray">Profit (₹)</th>
-                        <th className="number-col highlight-green" style={{ color: 'var(--primary-color)' }}>Target Margin %</th>
                         <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {tableData.filter(r => isKeychain(r.category) && r.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
-                        <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No items yet</td></tr>
+                        <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No items yet</td></tr>
                       ) : (
                         tableData
                           .filter(r => isKeychain(r.category) && r.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -662,16 +621,6 @@ function App() {
                                 </div>
                               </td>
                               <td className="number-col font-medium highlight-gray">₹{row.profit.toFixed(0)}</td>
-                              <td className="number-col font-bold highlight-green">
-                                <div className="editable-wrapper" style={{ backgroundColor: 'rgba(122, 144, 120, 0.1)', border: '1px solid rgba(122, 144, 120, 0.2)', padding: '0.1rem 0.5rem', borderRadius: '4px', width: 'fit-content', marginLeft: 'auto' }}>
-                                  <input
-                                    type="number" value={row.profitMargin != null && (row.profitMargin as any) !== "" ? Number(row.profitMargin).toFixed(1) : ''}
-                                    onChange={(e) => handleUpdateFlowerDatabase(row.id, 'targetMargin', e.target.value)}
-                                    className="price-input" style={{ width: '50px', backgroundColor: 'transparent', color: 'var(--primary-color)' }}
-                                  />
-                                  <span style={{ color: 'var(--primary-color)' }}>%</span>
-                                </div>
-                              </td>
                               <td style={{ textAlign: 'center' }}>
                                 <button onClick={() => handleDeleteFlower(row.id, row.name)} style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: 'none', cursor: 'pointer', padding: '0.4rem', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }} title="Delete Flower">
                                   <Trash2 size={18} />
@@ -704,13 +653,12 @@ function App() {
                           Selling Price <span style={{ fontSize: '0.875rem', marginLeft: '4px', opacity: 0.8 }}>↑</span>
                         </th>
                         <th className="number-col highlight-gray">Profit (₹)</th>
-                        <th className="number-col highlight-green" style={{ color: 'var(--primary-color)' }}>Target Margin %</th>
                         <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {tableData.filter(r => isFlowerPot(r.category) && r.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
-                        <tr><td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No items yet</td></tr>
+                        <tr><td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>No items yet</td></tr>
                       ) : (
                         tableData
                           .filter(r => isFlowerPot(r.category) && r.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -763,16 +711,6 @@ function App() {
                                 </div>
                               </td>
                               <td className="number-col font-medium highlight-gray">₹{row.profit.toFixed(0)}</td>
-                              <td className="number-col font-bold highlight-green">
-                                <div className="editable-wrapper" style={{ backgroundColor: 'rgba(122, 144, 120, 0.1)', border: '1px solid rgba(122, 144, 120, 0.2)', padding: '0.1rem 0.5rem', borderRadius: '4px', width: 'fit-content', marginLeft: 'auto' }}>
-                                  <input
-                                    type="number" value={row.profitMargin != null && (row.profitMargin as any) !== "" ? Number(row.profitMargin).toFixed(1) : ''}
-                                    onChange={(e) => handleUpdateFlowerDatabase(row.id, 'targetMargin', e.target.value)}
-                                    className="price-input" style={{ width: '50px', backgroundColor: 'transparent', color: 'var(--primary-color)' }}
-                                  />
-                                  <span style={{ color: 'var(--primary-color)' }}>%</span>
-                                </div>
-                              </td>
                               <td style={{ textAlign: 'center' }}>
                                 <button onClick={() => handleDeleteFlower(row.id, row.name)} style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: 'none', cursor: 'pointer', padding: '0.4rem', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }} title="Delete Flower">
                                   <Trash2 size={18} />
