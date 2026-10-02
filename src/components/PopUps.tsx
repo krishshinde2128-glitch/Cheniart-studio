@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Navbar } from './Navbar';
 import type { PopUpEvent, PopUpChecklistItem, PopUpSaleItem, FlowerData } from '../types';
 import { Plus, Trash2, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
@@ -75,7 +75,44 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
 
   // States for active popup management - Smart Inputs
   const [smartChecklistInput, setSmartChecklistInput] = useState<Record<string, string>>({});
-  const [smartSaleInput, setSmartSaleInput] = useState<Record<string, string>>({});
+  const [googleSheetUrls, setGoogleSheetUrls] = useState<Record<string, string>>({});
+  const [isImporting, setIsImporting] = useState(false);
+
+  // New Sale Logger State
+  const [saleForms, setSaleForms] = useState<Record<string, {
+    category: string;
+    qty: number;
+    search: string;
+    selectedItemId: string | null;
+    unitPrice: number;
+    totalPrice: number;
+    isDropdownOpen: boolean;
+    cart: {
+      id: string; // unique for cart item
+      checklistItemId: string;
+      flowerName: string;
+      qty: number;
+      unitPrice: number;
+      totalPrice: number;
+      unitCost: number;
+    }[];
+    finalQuote: number | null;
+  }>>({});
+
+  const getSaleForm = (popupId: string) => {
+    return saleForms[popupId] || { 
+      category: '', qty: 1, search: '', selectedItemId: null, 
+      unitPrice: 0, totalPrice: 0, isDropdownOpen: false, 
+      cart: [], finalQuote: null 
+    };
+  };
+
+  const updateSaleForm = (popupId: string, updates: Partial<typeof saleForms[string]>) => {
+    setSaleForms(prev => ({
+      ...prev,
+      [popupId]: { ...getSaleForm(popupId), ...updates }
+    }));
+  };
 
   const handleCreateEvent = async () => {
     if (!newEvent.name || !newEvent.startDate || !newEvent.endDate) return;
@@ -99,20 +136,12 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
 
     const lines = inputStr.split('\n').map(l => l.trim()).filter(Boolean);
     const updatedChecklist = [...(popup.checklist || [])];
-    let hasErrors = false;
 
     for (const line of lines) {
       const parsed = parseSmartInput(line);
       if (!parsed.name) continue;
 
-      const flower = findBestMatch(parsed.name, flowers, 'name');
-      if (!flower) {
-        alert(`Could not find a product matching "${parsed.name}" in your database (from line: "${line}").`);
-        hasErrors = true;
-        continue;
-      }
-
-      const existingIndex = updatedChecklist.findIndex(i => i.flowerName === flower.name);
+      const existingIndex = updatedChecklist.findIndex(i => i.flowerName.toLowerCase() === parsed.name.toLowerCase());
       if (existingIndex > -1) {
         updatedChecklist[existingIndex] = {
           ...updatedChecklist[existingIndex],
@@ -122,19 +151,104 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
       } else {
         const newItem: PopUpChecklistItem = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-          flowerName: flower.name,
+          flowerName: parsed.name,
           initialQty: parsed.qty,
           currentQty: parsed.qty,
-          unitCost: calculateProductCost(flower),
-          unitSellingPrice: flower.sellingPrice || 0
+          unitCost: 0, // Costs aren't known when typing manually unless added. Can be updated via Google Sheet.
+          unitSellingPrice: parsed.price || 0
         };
         updatedChecklist.push(newItem);
       }
     }
     
     await onUpdatePopup(popup.id, { checklist: updatedChecklist });
-    if (!hasErrors) {
-      setSmartChecklistInput({ ...smartChecklistInput, [popup.id]: '' });
+    setSmartChecklistInput({ ...smartChecklistInput, [popup.id]: '' });
+  };
+
+  const handleImportGoogleSheet = async (popup: PopUpEvent) => {
+    const url = googleSheetUrls[popup.id];
+    if (!url) return;
+
+    const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (!match) {
+      alert("Invalid Google Sheets URL. Make sure it contains '/d/SPREADSHEET_ID'.");
+      return;
+    }
+    const spreadsheetId = match[1];
+    const apiKey = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY;
+    if (!apiKey) {
+      alert("Google Sheets API Key is missing. Please follow the instructions to add VITE_GOOGLE_SHEETS_API_KEY to your .env file.");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      // Data is on Sheet1 from A2 to F
+      // Format: Category | Product | Quantity | Price | Total Price | Cost of making 1
+      const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A2:F?key=${apiKey}`);
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error.message);
+      }
+
+      if (!data.values || data.values.length === 0) {
+        alert("No data found in Sheet1 (Columns A to F).");
+        setIsImporting(false);
+        return;
+      }
+
+      const updatedChecklist = [...(popup.checklist || [])];
+
+      const parseCurrency = (str: string) => {
+        if (!str) return 0;
+        return parseFloat(str.replace(/[^0-9.]/g, '')) || 0;
+      };
+
+      let currentCategory = 'Uncategorized';
+
+      for (const row of data.values) {
+        const rawCategory = row[0]?.trim();
+        if (rawCategory) {
+          currentCategory = rawCategory;
+        }
+
+        const name = row[1]?.trim();
+        if (!name) continue; 
+
+        const qty = parseInt(row[2]) || 0;
+        const price = parseCurrency(row[3]); // Column D is Price (Selling Price)
+        const cost = parseCurrency(row[5]); // Column F is Cost of making 1
+
+        const existingIndex = updatedChecklist.findIndex(i => i.flowerName.toLowerCase() === name.toLowerCase() && i.category === currentCategory);
+        if (existingIndex > -1) {
+          updatedChecklist[existingIndex] = {
+            ...updatedChecklist[existingIndex],
+            initialQty: updatedChecklist[existingIndex].initialQty + qty,
+            currentQty: updatedChecklist[existingIndex].currentQty + qty,
+            unitCost: cost,
+            unitSellingPrice: price
+          };
+        } else {
+          updatedChecklist.push({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            flowerName: name,
+            category: currentCategory,
+            initialQty: qty,
+            currentQty: qty,
+            unitCost: cost,
+            unitSellingPrice: price
+          });
+        }
+      }
+
+      await onUpdatePopup(popup.id, { checklist: updatedChecklist });
+      setGoogleSheetUrls({ ...googleSheetUrls, [popup.id]: '' });
+      alert("Successfully imported items from Google Sheet!");
+    } catch (error: any) {
+      alert("Error importing from Google Sheets: " + error.message);
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -143,58 +257,110 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
     await onUpdatePopup(popup.id, { checklist: updatedChecklist });
   };
 
-  const handleAddSale = async (popup: PopUpEvent) => {
-    const inputStr = smartSaleInput[popup.id];
-    if (!inputStr || !inputStr.trim()) return;
+  const handleAddToCart = (popup: PopUpEvent) => {
+    const form = getSaleForm(popup.id);
+    if (!form.selectedItemId || form.qty < 1) return;
 
-    const lines = inputStr.split('\n').map(l => l.trim()).filter(Boolean);
+    const checkItemMatch = (popup.checklist || []).find(i => i.id === form.selectedItemId);
+    if (!checkItemMatch) return;
+
+    // Optional: check if requested qty exceeds stock (including what's already in cart)
+    const qtyInCart = form.cart.filter(i => i.checklistItemId === form.selectedItemId).reduce((sum, i) => sum + i.qty, 0);
+    if (checkItemMatch.currentQty < form.qty + qtyInCart) {
+      alert(`Not enough stock for "${checkItemMatch.flowerName}"! You only have ${checkItemMatch.currentQty - qtyInCart} available to add.`);
+      return;
+    }
+
+    const newCartItem = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+      checklistItemId: checkItemMatch.id,
+      flowerName: checkItemMatch.flowerName,
+      qty: form.qty,
+      unitPrice: form.unitPrice,
+      totalPrice: form.totalPrice,
+      unitCost: checkItemMatch.unitCost
+    };
+
+    updateSaleForm(popup.id, { 
+      cart: [...form.cart, newCartItem],
+      qty: 1, search: '', selectedItemId: null, unitPrice: 0, totalPrice: 0, isDropdownOpen: false 
+    });
+  };
+
+  const handleRemoveFromCart = (popupId: string, cartItemId: string) => {
+    const form = getSaleForm(popupId);
+    updateSaleForm(popupId, {
+      cart: form.cart.filter(i => i.id !== cartItemId)
+    });
+  };
+
+  const handleAddSale = async (popup: PopUpEvent) => {
+    const form = getSaleForm(popup.id);
+    if (form.cart.length === 0) return;
+
     let updatedChecklist = [...(popup.checklist || [])];
     let updatedSales = [...(popup.sales || [])];
-    let hasErrors = false;
 
-    for (const line of lines) {
-      const parsed = parseSmartInput(line);
-      if (!parsed.name) continue;
+    const totalBasePrice = form.cart.reduce((sum, item) => sum + item.totalPrice, 0);
+    const finalOrderQuote = form.finalQuote !== null ? form.finalQuote : totalBasePrice;
+    const ratio = totalBasePrice > 0 ? (finalOrderQuote / totalBasePrice) : 1;
 
-      const checkItemMatch = findBestMatch(parsed.name, updatedChecklist, 'flowerName');
-      
-      if (!checkItemMatch) {
-        alert(`Could not find "${parsed.name}" in this pop-up's checklist (from line: "${line}")!`);
-        hasErrors = true;
-        continue;
+    for (const cartItem of form.cart) {
+      const checkItemIndex = updatedChecklist.findIndex(i => i.id === cartItem.checklistItemId);
+      if (checkItemIndex === -1) continue;
+
+      const checkItemMatch = updatedChecklist[checkItemIndex];
+
+      // Final check for stock
+      if (checkItemMatch.currentQty < cartItem.qty) {
+        alert(`Not enough stock for "${checkItemMatch.flowerName}"!`);
+        return; // Abort whole order
       }
 
-      if (checkItemMatch.currentQty < parsed.qty) {
-        alert(`Not enough stock in checklist for "${checkItemMatch.flowerName}"! You only have ${checkItemMatch.currentQty} left (from line: "${line}").`);
-        hasErrors = true;
-        continue;
-      }
-
-      const checkItemIndex = updatedChecklist.findIndex(i => i.id === checkItemMatch.id);
-      const unitPrice = parsed.price ?? checkItemMatch.unitSellingPrice;
+      const adjustedTotalPrice = cartItem.totalPrice * ratio;
+      const adjustedUnitPrice = cartItem.qty > 0 ? (adjustedTotalPrice / cartItem.qty) : 0;
 
       const newSale: PopUpSaleItem = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
         flowerName: checkItemMatch.flowerName,
-        qty: parsed.qty,
-        unitPrice: unitPrice,
-        totalPrice: unitPrice * parsed.qty,
+        qty: cartItem.qty,
+        unitPrice: adjustedUnitPrice,
+        totalPrice: adjustedTotalPrice,
         dayIndex: popup.currentDayIndex,
         timestamp: new Date().toISOString()
       };
 
       updatedChecklist[checkItemIndex] = {
         ...checkItemMatch,
-        currentQty: checkItemMatch.currentQty - parsed.qty
+        currentQty: checkItemMatch.currentQty - cartItem.qty
       };
 
       updatedSales.push(newSale);
     }
 
     await onUpdatePopup(popup.id, { checklist: updatedChecklist, sales: updatedSales });
-    if (!hasErrors) {
-      setSmartSaleInput({ ...smartSaleInput, [popup.id]: '' });
+    // Reset form after successful order
+    updateSaleForm(popup.id, { cart: [], finalQuote: null });
+  };
+
+  const handleDeleteSale = async (popup: PopUpEvent, saleId: string) => {
+    if (!window.confirm("Are you sure you want to delete this logged sale? Stock will be restored.")) return;
+
+    const saleToDelete = popup.sales?.find(s => s.id === saleId);
+    if (!saleToDelete) return;
+
+    const updatedSales = popup.sales?.filter(s => s.id !== saleId) || [];
+    let updatedChecklist = [...(popup.checklist || [])];
+
+    const checkItemIndex = updatedChecklist.findIndex(i => i.flowerName === saleToDelete.flowerName);
+    if (checkItemIndex > -1) {
+      updatedChecklist[checkItemIndex] = {
+        ...updatedChecklist[checkItemIndex],
+        currentQty: updatedChecklist[checkItemIndex].currentQty + saleToDelete.qty
+      };
     }
+
+    await onUpdatePopup(popup.id, { sales: updatedSales, checklist: updatedChecklist });
   };
 
   const handleEndDay = async (popup: PopUpEvent) => {
@@ -283,6 +449,23 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
               </button>
             </div>
 
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', alignItems: 'center', backgroundColor: '#f0fdf4', padding: '1rem', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.875rem', fontWeight: 500, color: '#166534', marginBottom: '0.25rem' }}>Import from Google Sheet</div>
+                <input 
+                  type="text" 
+                  value={googleSheetUrls[popup.id] || ''}
+                  onChange={(e) => setGoogleSheetUrls({...googleSheetUrls, [popup.id]: e.target.value})}
+                  className="saas-input" 
+                  style={{ width: '100%', backgroundColor: 'white' }}
+                  placeholder="Paste Google Sheet link here..."
+                />
+              </div>
+              <button onClick={() => handleImportGoogleSheet(popup)} className="flat-btn" style={{ padding: '0.5rem 1rem', backgroundColor: '#166534', marginTop: '1.25rem' }} disabled={isImporting || !(googleSheetUrls[popup.id]?.trim())}>
+                {isImporting ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+
             <div className="table-wrapper" style={{ maxHeight: '400px', overflowY: 'auto' }}>
               <table className="data-table" style={{ fontSize: '0.875rem' }}>
                 <thead>
@@ -295,22 +478,40 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
                   </tr>
                 </thead>
                 <tbody>
-                  {(popup.checklist || []).map(item => (
-                    <tr key={item.id} style={{ opacity: item.currentQty === 0 ? 0.6 : 1 }}>
-                      <td className="font-medium">{item.flowerName}</td>
-                      <td style={{ textAlign: 'center' }}>{item.initialQty}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold', color: item.currentQty === 0 ? '#ef4444' : 'inherit' }}>{item.currentQty}</td>
-                      <td style={{ textAlign: 'right' }}>₹{item.unitSellingPrice}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button onClick={() => handleDeleteChecklistItem(popup, item.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {(!popup.checklist || popup.checklist.length === 0) && (
-                    <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Checklist is empty. Pack some items!</td></tr>
-                  )}
+                  {(() => {
+                    const checklist = popup.checklist || [];
+                    if (checklist.length === 0) {
+                      return <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Checklist is empty. Pack some items!</td></tr>;
+                    }
+                    
+                    const grouped = checklist.reduce((acc, item) => {
+                      const cat = item.category || 'Uncategorized';
+                      if (!acc[cat]) acc[cat] = [];
+                      acc[cat].push(item);
+                      return acc;
+                    }, {} as Record<string, PopUpChecklistItem[]>);
+
+                    return Object.entries(grouped).map(([category, items]) => (
+                      <React.Fragment key={category}>
+                        <tr style={{ backgroundColor: '#f3f4f6' }}>
+                          <td colSpan={5} style={{ fontWeight: 'bold', padding: '0.5rem 1rem', color: '#374151' }}>{category}</td>
+                        </tr>
+                        {items.map(item => (
+                          <tr key={item.id} style={{ opacity: item.currentQty === 0 ? 0.6 : 1 }}>
+                            <td className="font-medium" style={{ paddingLeft: '2rem' }}>{item.flowerName}</td>
+                            <td style={{ textAlign: 'center' }}>{item.initialQty}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold', color: item.currentQty === 0 ? '#ef4444' : 'inherit' }}>{item.currentQty}</td>
+                            <td style={{ textAlign: 'right' }}>₹{item.unitSellingPrice}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button onClick={() => handleDeleteChecklistItem(popup, item.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -322,18 +523,231 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
           <div>
             <h3 style={{ fontSize: '1.125rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>Log Sale</h3>
             
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', padding: '1rem', backgroundColor: '#FBF8F2', borderRadius: '8px', border: '1px solid rgba(122, 144, 120, 0.2)' }}>
-              <textarea 
-                value={smartSaleInput[popup.id] || ''}
-                onChange={(e) => setSmartSaleInput({...smartSaleInput, [popup.id]: e.target.value})}
-                className="saas-input" 
-                style={{ flex: 1, backgroundColor: 'white', minHeight: '60px', resize: 'vertical' }}
-                placeholder="e.g. '1 sunflower - 150'\nPaste multiple lines to log a huge sale at once!"
-              />
-              <button onClick={() => handleAddSale(popup)} className="flat-btn" style={{ padding: '0.5rem 1rem', backgroundColor: 'var(--primary-dark)' }} disabled={!(smartSaleInput[popup.id]?.trim())}>
-                Sell
-              </button>
-            </div>
+            {(() => {
+              const form = getSaleForm(popup.id);
+              const categories = Array.from(new Set((popup.checklist || []).map(i => i.category || 'Uncategorized')));
+              // Automatically select first category if none selected
+              if (!form.category && categories.length > 0) {
+                setTimeout(() => updateSaleForm(popup.id, { category: categories[0] }), 0);
+              }
+
+              const availableItems = (popup.checklist || []).filter(i => 
+                (i.category || 'Uncategorized') === form.category &&
+                i.currentQty > 0 &&
+                i.flowerName.toLowerCase().includes(form.search.toLowerCase())
+              );
+
+              return (
+                <div style={{ backgroundColor: '#FBF8F2', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(122, 144, 120, 0.2)', marginBottom: '1.5rem' }}>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 2fr', gap: '1rem', alignItems: 'end', marginBottom: '1.5rem' }}>
+                    
+                    {/* CATEGORY */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Category</label>
+                      <select 
+                        value={form.category} 
+                        onChange={(e) => updateSaleForm(popup.id, { category: e.target.value, selectedItemId: null, search: '' })}
+                        className="saas-input"
+                        style={{ width: '100%', backgroundColor: 'white', cursor: 'pointer' }}
+                      >
+                        {categories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* QTY */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Qty</label>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        value={form.qty} 
+                        onChange={(e) => {
+                          const newQty = parseInt(e.target.value) || 1;
+                          updateSaleForm(popup.id, { qty: newQty, totalPrice: form.unitPrice * newQty });
+                        }}
+                        className="saas-input"
+                        style={{ width: '100%', backgroundColor: 'white' }}
+                      />
+                    </div>
+
+                    {/* SEARCH & SELECT */}
+                    <div style={{ position: 'relative' }}>
+                      <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Search & Select Item</label>
+                      <input 
+                        type="text" 
+                        value={form.selectedItemId ? (popup.checklist || []).find(i => i.id === form.selectedItemId)?.flowerName : form.search}
+                        onChange={(e) => {
+                          updateSaleForm(popup.id, { search: e.target.value, selectedItemId: null, isDropdownOpen: true });
+                        }}
+                        onFocus={() => updateSaleForm(popup.id, { isDropdownOpen: true })}
+                        placeholder="Search items..."
+                        className="saas-input"
+                        style={{ width: '100%', backgroundColor: 'white' }}
+                      />
+                      {form.isDropdownOpen && availableItems.length > 0 && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', marginTop: '4px', zIndex: 10, maxHeight: '200px', overflowY: 'auto', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+                          {availableItems.map(item => (
+                            <div 
+                              key={item.id} 
+                              style={{ padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', borderBottom: '1px solid #f3f4f6' }}
+                              onClick={() => {
+                                updateSaleForm(popup.id, { 
+                                  selectedItemId: item.id, 
+                                  search: '', 
+                                  isDropdownOpen: false,
+                                  unitPrice: item.unitSellingPrice,
+                                  totalPrice: item.unitSellingPrice * form.qty
+                                });
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              <span>{item.flowerName}</span>
+                              <span style={{ color: 'var(--text-secondary)' }}>₹{item.unitSellingPrice}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {form.isDropdownOpen && availableItems.length === 0 && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', marginTop: '4px', zIndex: 10, padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                          No items match your search.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* PRICE EDITOR */}
+                  {form.selectedItemId && (
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'end', marginTop: '1rem', padding: '1rem', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Unit Price (Editable)</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>₹</span>
+                          <input 
+                            type="number" 
+                            value={form.unitPrice} 
+                            onChange={(e) => {
+                              const p = parseFloat(e.target.value) || 0;
+                              updateSaleForm(popup.id, { unitPrice: p, totalPrice: p * form.qty });
+                            }}
+                            className="saas-input"
+                            style={{ padding: '0.25rem 0.5rem', width: '100px' }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Total Price (Editable)</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>₹</span>
+                          <input 
+                            type="number" 
+                            value={form.totalPrice} 
+                            onChange={(e) => {
+                              const t = parseFloat(e.target.value) || 0;
+                              updateSaleForm(popup.id, { totalPrice: t });
+                            }}
+                            className="saas-input"
+                            style={{ padding: '0.25rem 0.5rem', width: '100px' }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <button 
+                        onClick={() => handleAddToCart(popup)} 
+                        className="flat-btn" 
+                        style={{ padding: '0.5rem 1.5rem', backgroundColor: 'var(--primary-dark)' }}
+                      >
+                        Add to Order
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* ORDER SUMMARY (CART) */}
+                  {form.cart.length > 0 && (
+                    <div style={{ marginTop: '2rem', padding: '1.5rem', backgroundColor: '#6b7e65', borderRadius: '12px', color: 'white' }}>
+                      <h4 style={{ fontSize: '1.25rem', fontFamily: "'Playfair Display', serif", marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '0.5rem' }}>
+                        Order Summary
+                      </h4>
+                      
+                      {/* Cart Items */}
+                      <div style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {form.cart.map(item => (
+                          <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.75rem', borderRadius: '8px' }}>
+                            <div>
+                              <span style={{ fontWeight: 600 }}>{item.qty}x</span> {item.flowerName}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', padding: '0.25rem 0.5rem', borderRadius: '6px' }}>
+                                <span style={{ marginRight: '0.25rem' }}>₹</span>
+                                <input 
+                                  type="number"
+                                  value={item.totalPrice}
+                                  onChange={(e) => {
+                                    const newPrice = parseFloat(e.target.value) || 0;
+                                    updateSaleForm(popup.id, {
+                                      cart: form.cart.map(c => c.id === item.id ? { ...c, totalPrice: newPrice } : c)
+                                    });
+                                  }}
+                                  style={{ background: 'transparent', border: 'none', color: 'white', width: '60px', outline: 'none', textAlign: 'right' }}
+                                />
+                              </div>
+                              <button onClick={() => handleRemoveFromCart(popup.id, item.id)} style={{ color: '#ffb3b3', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {(() => {
+                        const totalBaseCost = form.cart.reduce((sum, item) => sum + item.totalPrice, 0);
+                        const totalUnitCosts = form.cart.reduce((sum, item) => sum + (item.unitCost * item.qty), 0);
+                        const finalQuote = form.finalQuote !== null ? form.finalQuote : totalBaseCost;
+                        const estimatedProfit = finalQuote - totalUnitCosts;
+
+                        return (
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', color: 'rgba(255,255,255,0.9)' }}>
+                              <span>Total Base Cost:</span>
+                              <span>₹{totalBaseCost}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                              <span>Estimated Profit:</span>
+                              <span>₹{estimatedProfit.toFixed(0)}</span>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                              <span style={{ fontSize: '1.125rem', fontWeight: 500 }}>Total Quote:</span>
+                              <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', padding: '0.5rem 1rem', borderRadius: '8px' }}>
+                                <span style={{ marginRight: '0.5rem', fontWeight: 600 }}>₹</span>
+                                <input 
+                                  type="number"
+                                  value={finalQuote}
+                                  onChange={(e) => updateSaleForm(popup.id, { finalQuote: parseFloat(e.target.value) || 0 })}
+                                  style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', fontWeight: 700, width: '100px', outline: 'none', textAlign: 'right' }}
+                                />
+                              </div>
+                            </div>
+
+                            <button 
+                              onClick={() => handleAddSale(popup)} 
+                              className="flat-btn" 
+                              style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.9)', color: '#6b7e65', padding: '1rem', fontSize: '1.125rem', fontWeight: 600 }}
+                            >
+                              Save Final Quote & Log Sale
+                            </button>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', backgroundColor: 'var(--primary-color)', color: 'white', borderRadius: '8px', marginBottom: '1rem' }}>
               <div>
@@ -356,7 +770,16 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
                       <span className="font-bold">{sale.qty}x</span> {sale.flowerName}
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{new Date(sale.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                     </div>
-                    <div className="font-bold highlight-green">₹{sale.totalPrice}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <span className="font-bold highlight-green">₹{sale.totalPrice}</span>
+                      <button 
+                        onClick={() => handleDeleteSale(popup, sale.id)} 
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px' }}
+                        title="Delete Sale"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

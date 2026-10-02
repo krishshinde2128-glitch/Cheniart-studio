@@ -119,6 +119,7 @@ export interface StockItem {
 export interface PopUpChecklistItem {
   id: string;
   flowerName: string;
+  category?: string;
   initialQty: number;
   currentQty: number;
   unitCost: number;
