@@ -332,29 +332,6 @@ export function PopUps({ popups, onUpdatePopup, onAddPopup, onDeletePopup }: Pop
     updateSaleForm(popup.id, { cart: [], finalQuote: null });
   };
 
-  const handleDeleteSale = async (popup: PopUpEvent, saleId: string) => {
-    if (!window.confirm("Are you sure you want to delete this logged sale? Stock will be restored.")) return;
-
-    const saleToDelete = popup.sales?.find(s => s.id === saleId);
-    if (!saleToDelete) return;
-
-    const updatedSales = popup.sales?.filter(s => s.id !== saleId) || [];
-    let updatedChecklist = [...(popup.checklist || [])];
-
-    const checkItemIndex = updatedChecklist.findIndex(i => 
-      saleToDelete.checklistItemId
-        ? i.id === saleToDelete.checklistItemId
-        : i.flowerName === saleToDelete.flowerName
-    );
-    if (checkItemIndex > -1) {
-      updatedChecklist[checkItemIndex] = {
-        ...updatedChecklist[checkItemIndex],
-        currentQty: updatedChecklist[checkItemIndex].currentQty + saleToDelete.qty
-      };
-    }
-
-    await onUpdatePopup(popup.id, { sales: updatedSales, checklist: updatedChecklist });
-  };
 
   const handleDeleteOrder = async (popup: PopUpEvent, items: PopUpSaleItem[]) => {
     if (!window.confirm("Are you sure you want to delete this entire order? Stock will be restored.")) return;

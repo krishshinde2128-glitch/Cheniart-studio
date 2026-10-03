@@ -222,7 +222,7 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
         return updated;
       });
     } else {
-      const categorySuffix = (flower.category && flower.category !== 'Uncategorized' && !flower.name.toLowerCase().includes(flower.category.toLowerCase()))
+      const categorySuffix = (flower.category && (flower.category as string) !== 'Uncategorized' && !flower.name.toLowerCase().includes(flower.category.toLowerCase()))
         ? ` ${flower.category}`
         : '';
       const newItem: OrderItem = {
@@ -615,7 +615,7 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
                               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
                               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
-                              <span>{f.name}{f.category && f.category !== 'Uncategorized' && !f.name.toLowerCase().includes(f.category.toLowerCase()) ? ` ${f.category}` : ''}</span>
+                              <span>{f.name}{f.category && (f.category as string) !== 'Uncategorized' && !f.name.toLowerCase().includes(f.category.toLowerCase()) ? ` ${f.category}` : ''}</span>
                               <span style={{ color: 'var(--text-secondary)' }}>₹{Math.round(f.sellingPrice || 0)}</span>
                             </div>
                           ))
@@ -644,7 +644,7 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
                             <td className="font-medium">{(() => {
                               const flower = flowers.find(f => f.id === item.flowerId || f.name.toLowerCase() === item.flowerName.toLowerCase());
                               const cat = flower?.category;
-                              return (cat && cat !== 'Uncategorized' && !item.flowerName.toLowerCase().includes(cat.toLowerCase()))
+                              return (cat && (cat as string) !== 'Uncategorized' && !item.flowerName.toLowerCase().includes(cat.toLowerCase()))
                                 ? `${item.flowerName} ${cat}`
                                 : item.flowerName;
                             })()}</td>
