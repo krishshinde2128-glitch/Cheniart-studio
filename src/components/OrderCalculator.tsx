@@ -222,10 +222,13 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
         return updated;
       });
     } else {
+      const categorySuffix = (flower.category && flower.category !== 'Uncategorized' && !flower.name.toLowerCase().includes(flower.category.toLowerCase()))
+        ? ` ${flower.category}`
+        : '';
       const newItem: OrderItem = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         flowerId: flower.id,
-        flowerName: flower.name,
+        flowerName: `${flower.name}${categorySuffix}`,
         quantity: input.addQty,
         unitCost: getFlowerCost(flower),
         unitSellingPrice: flower.sellingPrice || 0,
@@ -612,7 +615,7 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
                               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
                               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
-                              <span>{f.name}</span>
+                              <span>{f.name}{f.category && f.category !== 'Uncategorized' && !f.name.toLowerCase().includes(f.category.toLowerCase()) ? ` ${f.category}` : ''}</span>
                               <span style={{ color: 'var(--text-secondary)' }}>₹{Math.round(f.sellingPrice || 0)}</span>
                             </div>
                           ))
@@ -638,7 +641,13 @@ export function OrderCalculator({ flowers, onSaveOrder, initialOrder, isModal }:
                       <tbody>
                         {sectionItems.map(item => (
                           <tr key={item.id}>
-                            <td className="font-medium">{item.flowerName}</td>
+                            <td className="font-medium">{(() => {
+                              const flower = flowers.find(f => f.id === item.flowerId || f.name.toLowerCase() === item.flowerName.toLowerCase());
+                              const cat = flower?.category;
+                              return (cat && cat !== 'Uncategorized' && !item.flowerName.toLowerCase().includes(cat.toLowerCase()))
+                                ? `${item.flowerName} ${cat}`
+                                : item.flowerName;
+                            })()}</td>
                             <td className="number-col">
                               <div className="editable-wrapper" style={{ width: '70px', margin: '0 0 0 auto' }}>
                                 <input 

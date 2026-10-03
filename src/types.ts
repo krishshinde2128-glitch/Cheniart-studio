@@ -128,12 +128,14 @@ export interface PopUpChecklistItem {
 
 export interface PopUpSaleItem {
   id: string;
+  checklistItemId?: string;
   flowerName: string;
   qty: number;
   unitPrice: number;
   totalPrice: number;
   dayIndex: number;
   timestamp: string;
+  orderId?: string;
 }
 
 export interface PopUpEvent {

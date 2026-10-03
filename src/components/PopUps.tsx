@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Navbar } from './Navbar';
 import type { PopUpEvent, PopUpChecklistItem, PopUpSaleItem, FlowerData } from '../types';
 import { Plus, Trash2, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
-import { calculateProductCost } from '../App';
 
 const wordToNumber: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5,
@@ -34,25 +33,6 @@ function parseSmartInput(input: string) {
   return { qty, name: parsedName, price: pricePart };
 }
 
-function findBestMatch<T>(parsedName: string, items: T[], itemNameKey: keyof T): T | undefined {
-  if (!parsedName) return undefined;
-  
-  // exact match
-  let match = items.find(i => String(i[itemNameKey]).toLowerCase() === parsedName);
-  if (match) return match;
-  
-  // partial match
-  match = items.find(i => String(i[itemNameKey]).toLowerCase().includes(parsedName) || parsedName.includes(String(i[itemNameKey]).toLowerCase()));
-  
-  // singular/plural fallback
-  if (!match && parsedName.endsWith('s')) {
-    const singular = parsedName.slice(0, -1);
-    match = items.find(i => String(i[itemNameKey]).toLowerCase().includes(singular));
-  }
-  
-  return match;
-}
-
 interface PopUpsProps {
   popups: PopUpEvent[];
   flowers: FlowerData[];
@@ -61,7 +41,7 @@ interface PopUpsProps {
   onDeletePopup: (id: string) => Promise<void>;
 }
 
-export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePopup }: PopUpsProps) {
+export function PopUps({ popups, onUpdatePopup, onAddPopup, onDeletePopup }: PopUpsProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newEvent, setNewEvent] = useState({ name: '', startDate: '', endDate: '', stallFee: 0 });
 
@@ -271,10 +251,14 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
       return;
     }
 
+    const categorySuffix = (checkItemMatch.category && checkItemMatch.category !== 'Uncategorized' && !checkItemMatch.flowerName.toLowerCase().includes(checkItemMatch.category.toLowerCase()))
+      ? ` ${checkItemMatch.category}`
+      : '';
+
     const newCartItem = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       checklistItemId: checkItemMatch.id,
-      flowerName: checkItemMatch.flowerName,
+      flowerName: `${checkItemMatch.flowerName}${categorySuffix}`,
       qty: form.qty,
       unitPrice: form.unitPrice,
       totalPrice: form.totalPrice,
@@ -305,6 +289,9 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
     const finalOrderQuote = form.finalQuote !== null ? form.finalQuote : totalBasePrice;
     const ratio = totalBasePrice > 0 ? (finalOrderQuote / totalBasePrice) : 1;
 
+    const orderId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+    const timestamp = new Date().toISOString();
+
     for (const cartItem of form.cart) {
       const checkItemIndex = updatedChecklist.findIndex(i => i.id === cartItem.checklistItemId);
       if (checkItemIndex === -1) continue;
@@ -322,12 +309,14 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
 
       const newSale: PopUpSaleItem = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-        flowerName: checkItemMatch.flowerName,
+        checklistItemId: checkItemMatch.id,
+        flowerName: cartItem.flowerName,
         qty: cartItem.qty,
         unitPrice: adjustedUnitPrice,
         totalPrice: adjustedTotalPrice,
         dayIndex: popup.currentDayIndex,
-        timestamp: new Date().toISOString()
+        timestamp,
+        orderId
       };
 
       updatedChecklist[checkItemIndex] = {
@@ -352,13 +341,41 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
     const updatedSales = popup.sales?.filter(s => s.id !== saleId) || [];
     let updatedChecklist = [...(popup.checklist || [])];
 
-    const checkItemIndex = updatedChecklist.findIndex(i => i.flowerName === saleToDelete.flowerName);
+    const checkItemIndex = updatedChecklist.findIndex(i => 
+      saleToDelete.checklistItemId
+        ? i.id === saleToDelete.checklistItemId
+        : i.flowerName === saleToDelete.flowerName
+    );
     if (checkItemIndex > -1) {
       updatedChecklist[checkItemIndex] = {
         ...updatedChecklist[checkItemIndex],
         currentQty: updatedChecklist[checkItemIndex].currentQty + saleToDelete.qty
       };
     }
+
+    await onUpdatePopup(popup.id, { sales: updatedSales, checklist: updatedChecklist });
+  };
+
+  const handleDeleteOrder = async (popup: PopUpEvent, items: PopUpSaleItem[]) => {
+    if (!window.confirm("Are you sure you want to delete this entire order? Stock will be restored.")) return;
+
+    const saleIdsToDelete = new Set(items.map(i => i.id));
+    const updatedSales = popup.sales?.filter(s => !saleIdsToDelete.has(s.id)) || [];
+    let updatedChecklist = [...(popup.checklist || [])];
+
+    items.forEach(saleToDelete => {
+      const checkItemIndex = updatedChecklist.findIndex(i => 
+        saleToDelete.checklistItemId
+          ? i.id === saleToDelete.checklistItemId
+          : i.flowerName === saleToDelete.flowerName
+      );
+      if (checkItemIndex > -1) {
+        updatedChecklist[checkItemIndex] = {
+          ...updatedChecklist[checkItemIndex],
+          currentQty: updatedChecklist[checkItemIndex].currentQty + saleToDelete.qty
+        };
+      }
+    });
 
     await onUpdatePopup(popup.id, { sales: updatedSales, checklist: updatedChecklist });
   };
@@ -605,7 +622,7 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
                               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
                               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
-                              <span>{item.flowerName}</span>
+                              <span>{item.flowerName}{item.category && item.category !== 'Uncategorized' && !item.flowerName.toLowerCase().includes(item.category.toLowerCase()) ? ` ${item.category}` : ''}</span>
                               <span style={{ color: 'var(--text-secondary)' }}>₹{item.unitSellingPrice}</span>
                             </div>
                           ))}
@@ -764,24 +781,55 @@ export function PopUps({ popups, flowers, onUpdatePopup, onAddPopup, onDeletePop
               <h4 style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Today's Log</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {todaysSales.length === 0 && <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>No sales logged yet today.</div>}
-                {[...todaysSales].reverse().map(sale => (
-                  <div key={sale.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', backgroundColor: 'white', borderRadius: '6px', border: '1px solid rgba(0,0,0,0.05)', fontSize: '0.875rem' }}>
-                    <div>
-                      <span className="font-bold">{sale.qty}x</span> {sale.flowerName}
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{new Date(sale.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                {(() => {
+                  const groupedSalesMap = new Map<string, { orderId: string, items: PopUpSaleItem[], timestamp: string, totalPrice: number }>();
+                  todaysSales.forEach(sale => {
+                    const oId = sale.orderId || sale.id;
+                    if (!groupedSalesMap.has(oId)) {
+                      groupedSalesMap.set(oId, { orderId: oId, items: [], timestamp: sale.timestamp, totalPrice: 0 });
+                    }
+                    const group = groupedSalesMap.get(oId)!;
+                    group.items.push(sale);
+                    group.totalPrice += sale.totalPrice;
+                  });
+                  const groupedSales = Array.from(groupedSalesMap.values());
+                  console.log("Grouped Sales for UI:", groupedSales);
+
+                  return [...groupedSales].reverse().map(group => (
+                    <div key={group.orderId} style={{ display: 'flex', flexDirection: 'column', padding: '0.75rem', backgroundColor: 'white', borderRadius: '6px', border: '1px solid rgba(0,0,0,0.05)', fontSize: '0.875rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span>
+                            {group.items.map((sale, index) => {
+                              const checkItem = popup.checklist?.find(i => i.id === sale.checklistItemId);
+                              const cat = checkItem?.category;
+                              const displayName = (cat && cat !== 'Uncategorized' && !sale.flowerName.toLowerCase().includes(cat.toLowerCase())) 
+                                ? `${sale.flowerName} ${cat}` 
+                                : sale.flowerName;
+                              return (
+                                <React.Fragment key={sale.id}>
+                                  <span className="font-bold">{sale.qty}x</span> {displayName}
+                                  {index < group.items.length - 1 ? ', ' : ''}
+                                </React.Fragment>
+                              );
+                            })}
+                          </span>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{new Date(group.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                          <span className="font-bold highlight-green" style={{ fontSize: group.items.length > 1 ? '1.1rem' : 'inherit' }}>₹{group.totalPrice.toFixed(0)}</span>
+                          <button 
+                            onClick={() => handleDeleteOrder(popup, group.items)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px' }}
+                            title={group.items.length > 1 ? "Delete Order" : "Delete Sale"}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <span className="font-bold highlight-green">₹{sale.totalPrice}</span>
-                      <button 
-                        onClick={() => handleDeleteSale(popup, sale.id)} 
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px' }}
-                        title="Delete Sale"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
             </div>
 
